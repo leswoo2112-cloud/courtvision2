@@ -1,2046 +1,2738 @@
-const STORAGE_KEY = "courtvision_pro_game_v1";
-const SAVED_GAMES_KEY = "courtvision_pro_saved_games_v1";
-const LEAGUE_KEY = "courtvision_pro_league_v1";
+/* =========================================================
+   COURTVISION PRO
+   app.js
+   ---------------------------------------------------------
+   3대3 / 5대5 농구 라이브 기록 시스템
+   - 3대3 점수 규칙
+     자유투 = 1
+     2점슛 = 1
+     3점슛 = 2
+   - 5대5 점수 규칙
+     자유투 = 1
+     2점슛 = 2
+     3점슛 = 3
+========================================================= */
 
-let gameTimer = null;
-let selectedVideoTag = "";
-let youtubePlayer = null;
-let youtubeReady = false;
-let currentVideoType = "file";
+"use strict";
 
-const defaultState = {
-  mode: "3x3",
+/* =========================================================
+   01. 기본 상태
+========================================================= */
 
-  gameTitle: "설천고 3대3 리그전",
-  gameDate: "",
-  gameLocation: "설천고 체육관",
-  competitionName: "교내 농구 리그",
+const state = {
 
-  teamAName: "설천고 A",
-  teamBName: "설천고 B",
+  mode: "3v3",
 
-  gameMinutes: 10,
-  gameSeconds: 600,
+  game: {
+    title: "농구 경기",
+    location: "",
+    date: "",
+    competition: "",
+    minutes: 10,
+    shotClockMax: 14,
+    targetScore: 21,
+    periodType: "single",
+    period: 1,
+    clockSeconds: 600,
+    shotClock: 14,
+    running: false
+  },
 
-  shotClockMax: 14,
-  shotClock: 14,
+  teams: {
+    A: {
+      name: "설천고 A",
+      fouls: 0,
+      timeouts: 1,
+      players: []
+    },
 
-  periodType: "single",
-  currentPeriod: 1,
-  periodLabel: "GAME",
-
-  targetScore: 21,
-
-  teamAFouls: 0,
-  teamBFouls: 0,
-
-  teamATimeouts: 1,
-  teamBTimeouts: 1,
-
-  clockRunning: false,
-  gameEnded: false,
+    B: {
+      name: "설천고 B",
+      fouls: 0,
+      timeouts: 1,
+      players: []
+    }
+  },
 
   selectedPlayerId: null,
 
-  players: [],
-  logs: [],
+  actions: [],
+
   shots: [],
+
   videoTags: [],
-  substitutions: [],
-  periodStats: [],
-  lineupRecords: [],
-  passConnections: [],
 
-  history: [],
+  savedGames: [],
 
-  shotMode: null,
-  heatmap: false,
+  league: {
+    teams: [],
+    schedules: [],
+    results: []
+  }
 
-  startedAt: null,
-  endedAt: null
 };
 
-let state = structuredClone(defaultState);
 
-let leagueState = {
-  teams: [],
-  schedule: [],
-  results: [],
-  seasonPlayers: []
-};
+/* =========================================================
+   02. 초기 선수
+========================================================= */
 
-/* =========================
-   선수 데이터
-========================= */
+function createDefaultPlayers() {
 
-function createPlayer(team, index) {
-  return {
-    id: createId(`player-${team}`),
-
-    team,
-    number: index + 1,
-    name: `${team}팀 선수 ${index + 1}`,
-
-    onCourt: true,
-    courtSeconds: 0,
-
-    pts: 0,
-    reb: 0,
-    ast: 0,
-    stl: 0,
-    blk: 0,
-    to: 0,
-    pf: 0,
-
-    fgm: 0,
-    fga: 0,
-
-    plusMinus: 0,
-    offenseScore: 0,
-    defenseScore: 0,
-
-    periodStats: {}
-  };
-}
-
-function createPlayersForMode(mode) {
-  const count = mode === "3x3" ? 3 : 5;
-  const players = [];
-
-  for (let index = 0; index < count; index += 1) {
-    players.push(createPlayer("A", index));
-  }
-
-  for (let index = 0; index < count; index += 1) {
-    players.push(createPlayer("B", index));
-  }
-
-  return players;
-}
-
-function initializePlayers() {
-  if (!Array.isArray(state.players) || state.players.length === 0) {
-    state.players = createPlayersForMode(state.mode);
-  }
-
-  state.players = state.players.map(player => ({
-    courtSeconds: 0,
-    plusMinus: 0,
-    offenseScore: 0,
-    defenseScore: 0,
-    periodStats: {},
-    ...player
-  }));
-
-  if (!state.selectedPlayerId) {
-    state.selectedPlayerId = state.players[0]?.id || null;
-  }
-}
-
-/* =========================
-   ID·복사·문자 처리
-========================= */
-
-function createId(prefix = "id") {
-  return `${prefix}-${Date.now()}-${Math.random()
-    .toString(16)
-    .slice(2)}`;
-}
-
-function deepClone(value) {
-  return JSON.parse(JSON.stringify(value));
-}
-
-function escapeHtml(value) {
-  return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
-}
-
-/* =========================
-   저장·불러오기
-========================= */
-
-function saveState() {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch (error) {
-    console.error("경기 저장 실패:", error);
-  }
-}
-
-function loadState() {
-  const saved = localStorage.getItem(STORAGE_KEY);
-
-  if (!saved) {
-    state = deepClone(defaultState);
-    initializePlayers();
-    return;
-  }
-
-  try {
-    const parsed = JSON.parse(saved);
-
-    state = {
-      ...deepClone(defaultState),
-      ...parsed
-    };
-
-    normalizeStateArrays();
-    initializePlayers();
-  } catch (error) {
-    console.error("경기 불러오기 실패:", error);
-
-    state = deepClone(defaultState);
-    initializePlayers();
-  }
-}
-
-function normalizeStateArrays() {
-  const arrayKeys = [
-    "players",
-    "logs",
-    "shots",
-    "videoTags",
-    "substitutions",
-    "periodStats",
-    "lineupRecords",
-    "passConnections",
-    "history"
+  state.teams.A.players = [
+    createPlayer("A", 1, "선수 A1", true),
+    createPlayer("A", 2, "선수 A2", true),
+    createPlayer("A", 3, "선수 A3", true)
   ];
 
-  arrayKeys.forEach(key => {
-    if (!Array.isArray(state[key])) {
-      state[key] = [];
-    }
-  });
+  state.teams.B.players = [
+    createPlayer("B", 1, "선수 B1", true),
+    createPlayer("B", 2, "선수 B2", true),
+    createPlayer("B", 3, "선수 B3", true)
+  ];
+
 }
 
-function saveLeagueState() {
-  try {
-    localStorage.setItem(LEAGUE_KEY, JSON.stringify(leagueState));
-  } catch (error) {
-    console.error("리그 저장 실패:", error);
-  }
-}
 
-function loadLeagueState() {
-  const saved = localStorage.getItem(LEAGUE_KEY);
+/* =========================================================
+   03. 선수 생성
+========================================================= */
 
-  if (!saved) {
-    return;
-  }
+function createPlayer(
+  team,
+  number,
+  name,
+  onCourt = false
+) {
 
-  try {
-    const parsed = JSON.parse(saved);
+  return {
 
-    leagueState = {
-      teams: [],
-      schedule: [],
-      results: [],
-      seasonPlayers: [],
-      ...parsed
-    };
-  } catch (error) {
-    console.error("리그 데이터 불러오기 실패:", error);
-  }
-}
+    id:
+      `${team}-${Date.now()}-${Math.random()
+        .toString(36)
+        .slice(2, 8)}`,
 
-/* =========================
-   선수·팀 조회
-========================= */
+    team,
 
-function getPlayer(playerId) {
-  return state.players.find(player => player.id === playerId);
-}
+    number,
 
-function getSelectedPlayer() {
-  return getPlayer(state.selectedPlayerId);
-}
+    name,
 
-function getTeamPlayers(team) {
-  return state.players.filter(player => player.team === team);
-}
+    onCourt,
 
-function getOnCourtPlayers(team) {
-  return state.players.filter(
-    player => player.team === team && player.onCourt
-  );
-}
+    stats: {
 
-function getTeamName(team) {
-  return team === "A" ? state.teamAName : state.teamBName;
-}
+      min: 0,
 
-function getTeamScore(team) {
-  return getTeamPlayers(team).reduce(
-    (total, player) => total + player.pts,
-    0
-  );
-}
-
-function getTeamStats(team) {
-  return getTeamPlayers(team).reduce(
-    (total, player) => {
-      total.pts += player.pts;
-      total.reb += player.reb;
-      total.ast += player.ast;
-      total.stl += player.stl;
-      total.blk += player.blk;
-      total.to += player.to;
-      total.pf += player.pf;
-      total.fgm += player.fgm;
-      total.fga += player.fga;
-      total.plusMinus += player.plusMinus;
-      total.courtSeconds += player.courtSeconds;
-
-      return total;
-    },
-    {
       pts: 0,
+
       reb: 0,
+
       ast: 0,
+
       stl: 0,
+
       blk: 0,
+
       to: 0,
+
       pf: 0,
-      fgm: 0,
+
+      fg: 0,
+
       fga: 0,
-      plusMinus: 0,
-      courtSeconds: 0
-    }
-  );
-}
 
-/* =========================
-   시간 표시
-========================= */
+      ft: 0,
 
-function formatTime(seconds) {
-  const safeSeconds = Math.max(0, Math.floor(Number(seconds) || 0));
-  const minutes = Math.floor(safeSeconds / 60);
-  const remainingSeconds = safeSeconds % 60;
+      fta: 0,
 
-  return `${String(minutes).padStart(2, "0")}:${String(
-    remainingSeconds
-  ).padStart(2, "0")}`;
-}
+      fg2: 0,
 
-function formatDateTime(timestamp) {
-  if (!timestamp) {
-    return "-";
-  }
+      fga2: 0,
 
-  return new Date(timestamp).toLocaleString("ko-KR");
-}
+      fg3: 0,
 
-function getCurrentClockText() {
-  return new Date().toLocaleTimeString("ko-KR", {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit"
-  });
-}
+      fga3: 0,
 
-/* =========================
-   경기 구간
-========================= */
+      off: 0,
 
-function getPeriodLabels() {
-  if (state.periodType === "quarter") {
-    return ["1Q", "2Q", "3Q", "4Q"];
-  }
+      def: 0,
 
-  if (state.periodType === "half") {
-    return ["전반", "후반"];
-  }
+      plusMinus: 0
 
-  return ["GAME"];
-}
+    },
 
-function updateCurrentPeriodLabel() {
-  const labels = getPeriodLabels();
-  const safeIndex = Math.min(
-    Math.max(state.currentPeriod - 1, 0),
-    labels.length - 1
-  );
+    secondsPlayed: 0
 
-  state.periodLabel = labels[safeIndex];
-}
-
-function getPeriodKey() {
-  return state.periodLabel || "GAME";
-}
-
-/* =========================
-   기록 스냅샷
-========================= */
-
-function createHistorySnapshot() {
-  return deepClone({
-    players: state.players,
-    logs: state.logs,
-    shots: state.shots,
-    substitutions: state.substitutions,
-    periodStats: state.periodStats,
-    lineupRecords: state.lineupRecords,
-    passConnections: state.passConnections,
-
-    teamAFouls: state.teamAFouls,
-    teamBFouls: state.teamBFouls,
-
-    teamATimeouts: state.teamATimeouts,
-    teamBTimeouts: state.teamBTimeouts
-  });
-}
-
-function pushHistory() {
-  state.history.push(createHistorySnapshot());
-
-  if (state.history.length > 60) {
-    state.history.shift();
-  }
-}
-
-function restoreHistorySnapshot(snapshot) {
-  state.players = snapshot.players;
-  state.logs = snapshot.logs;
-  state.shots = snapshot.shots;
-  state.substitutions = snapshot.substitutions;
-  state.periodStats = snapshot.periodStats;
-  state.lineupRecords = snapshot.lineupRecords;
-  state.passConnections = snapshot.passConnections;
-
-  state.teamAFouls = snapshot.teamAFouls;
-  state.teamBFouls = snapshot.teamBFouls;
-
-  state.teamATimeouts = snapshot.teamATimeouts;
-  state.teamBTimeouts = snapshot.teamBTimeouts;
-}
-
-/* =========================
-   로그
-========================= */
-
-function addLog({
-  player = null,
-  team = null,
-  text,
-  category = "기록"
-}) {
-  const resolvedTeam = team || player?.team || "-";
-
-  state.logs.unshift({
-    id: createId("log"),
-    createdAt: Date.now(),
-    time: getCurrentClockText(),
-    gameSeconds: state.gameSeconds,
-    period: getPeriodKey(),
-
-    playerId: player?.id || null,
-    playerName: player?.name || "",
-
-    team: resolvedTeam,
-    category,
-    text
-  });
-
-  if (state.logs.length > 100) {
-    state.logs.pop();
-  }
-}
-
-/* =========================
-   탭 이동
-========================= */
-
-function bindNavigation() {
-  document.querySelectorAll(".nav-btn").forEach(button => {
-    button.addEventListener("click", () => {
-      const tabId = button.dataset.tab;
-
-      document.querySelectorAll(".nav-btn").forEach(item => {
-        item.classList.remove("active");
-      });
-
-      document.querySelectorAll(".tab-section").forEach(section => {
-        section.classList.remove("active");
-      });
-
-      button.classList.add("active");
-
-      const targetSection = document.getElementById(tabId);
-
-      if (targetSection) {
-        targetSection.classList.add("active");
-      }
-
-      if (typeof drawAllCourts === "function") {
-        drawAllCourts();
-      }
-
-      if (typeof drawPassNetwork === "function") {
-        drawPassNetwork();
-      }
-    });
-  });
-}
-
-/* =========================
-   모드 변경
-========================= */
-
-function updateModeButtons() {
-  document
-    .getElementById("mode3v3Btn")
-    .classList.toggle("active", state.mode === "3x3");
-
-  document
-    .getElementById("mode5v5Btn")
-    .classList.toggle("active", state.mode === "5x5");
-
-  document.getElementById("liveModeLabel").textContent =
-    state.mode === "3x3" ? "3대3 모드" : "5대5 모드";
-
-  document.getElementById("liveGameMode").textContent =
-    state.mode === "3x3" ? "3대3" : "5대5";
-}
-
-function changeMode(mode) {
-  if (state.mode === mode) {
-    return;
-  }
-
-  const confirmed = confirm(
-    `${mode} 모드로 변경하면 현재 선수 명단과 경기 기록이 초기화돼용. 변경할까용?`
-  );
-
-  if (!confirmed) {
-    return;
-  }
-
-  stopGameClock();
-
-  state = {
-    ...deepClone(defaultState),
-    mode,
-    shotClockMax: mode === "3x3" ? 14 : 24,
-    shotClock: mode === "3x3" ? 14 : 24
   };
 
-  state.players = createPlayersForMode(mode);
-  state.selectedPlayerId = state.players[0]?.id || null;
-
-  fillSetupInputs();
-  renderSetupPlayerForms();
-  updateModeButtons();
-
-  saveState();
-  renderAll();
 }
 
-function bindModeButtons() {
+
+/* =========================================================
+   04. DOM 준비
+========================================================= */
+
+document.addEventListener(
+  "DOMContentLoaded",
+  () => {
+
+    createDefaultPlayers();
+
+    bindEvents();
+
+    loadSetupValues();
+
+    renderAll();
+
+    startInternalClock();
+
+  }
+);
+
+
+/* =========================================================
+   05. 이벤트 연결
+========================================================= */
+
+function bindEvents() {
+
+  /* 모드 */
+
   document
     .getElementById("mode3v3Btn")
-    .addEventListener("click", () => {
-      changeMode("3x3");
-    });
+    ?.addEventListener(
+      "click",
+      () => setMode("3v3")
+    );
+
 
   document
     .getElementById("mode5v5Btn")
-    .addEventListener("click", () => {
-      changeMode("5x5");
-    });
-}
+    ?.addEventListener(
+      "click",
+      () => setMode("5v5")
+    );
 
-/* =========================
-   설정 패널
-========================= */
 
-const setupPanel = document.getElementById("setupPanel");
+  /* 설정 */
 
-function openSetupPanel() {
-  fillSetupInputs();
-  renderSetupPlayerForms();
-  setupPanel.classList.add("open");
-}
-
-function closeSetupPanel() {
-  setupPanel.classList.remove("open");
-}
-
-function bindSetupPanelButtons() {
   document
     .getElementById("toggleSetupBtn")
-    .addEventListener("click", openSetupPanel);
+    ?.addEventListener(
+      "click",
+      toggleSetup
+    );
+
 
   document
     .getElementById("closeSetupBtn")
-    .addEventListener("click", closeSetupPanel);
+    ?.addEventListener(
+      "click",
+      closeSetup
+    );
 
-  document
-    .getElementById("addTeamAPlayerBtn")
-    .addEventListener("click", () => {
-      addPlayerToTeam("A");
-    });
-
-  document
-    .getElementById("addTeamBPlayerBtn")
-    .addEventListener("click", () => {
-      addPlayerToTeam("B");
-    });
 
   document
     .getElementById("saveSetupBtn")
-    .addEventListener("click", saveSetup);
-}
+    ?.addEventListener(
+      "click",
+      saveSetup
+    );
 
-/* =========================
-   선수 설정 폼
-========================= */
 
-function addPlayerToTeam(team) {
-  const teamPlayers = getTeamPlayers(team);
+  document
+    .getElementById("addTeamAPlayerBtn")
+    ?.addEventListener(
+      "click",
+      () => addPlayer("A")
+    );
 
-  const player = createPlayer(team, teamPlayers.length);
-  player.onCourt =
-    teamPlayers.filter(item => item.onCourt).length <
-    getRequiredOnCourtCount();
 
-  state.players.push(player);
+  document
+    .getElementById("addTeamBPlayerBtn")
+    ?.addEventListener(
+      "click",
+      () => addPlayer("B")
+    );
 
-  if (!state.selectedPlayerId) {
-    state.selectedPlayerId = player.id;
-  }
 
-  renderSetupPlayerForms();
-}
+  /* 라이브 액션 */
 
-function getRequiredOnCourtCount() {
-  return state.mode === "3x3" ? 3 : 5;
-}
+  document
+    .querySelectorAll(
+      ".stat-btn[data-action]"
+    )
+    .forEach(
+      button => {
 
-function removePlayer(playerId) {
-  const player = getPlayer(playerId);
+        button.addEventListener(
+          "click",
+          () => {
 
-  if (!player) {
-    return;
-  }
+            const action =
+              button.dataset.action;
 
-  const teamPlayers = getTeamPlayers(player.team);
+            handlePlayerAction(
+              action
+            );
 
-  if (teamPlayers.length <= 1) {
-    alert("각 팀에는 최소 1명의 선수가 있어야 해용.");
-    return;
-  }
+          }
+        );
 
-  state.players = state.players.filter(
-    item => item.id !== playerId
-  );
-
-  if (state.selectedPlayerId === playerId) {
-    state.selectedPlayerId = state.players[0]?.id || null;
-  }
-
-  renderSetupPlayerForms();
-}
-
-function toggleSetupOnCourt(playerId) {
-  const player = getPlayer(playerId);
-
-  if (!player) {
-    return;
-  }
-
-  if (!player.onCourt) {
-    const currentOnCourtCount = getOnCourtPlayers(player.team).length;
-
-    if (currentOnCourtCount >= getRequiredOnCourtCount()) {
-      alert(
-        `${state.mode} 모드에서는 한 팀당 ${getRequiredOnCourtCount()}명까지만 출전할 수 있어용.`
-      );
-
-      return;
-    }
-  }
-
-  player.onCourt = !player.onCourt;
-
-  renderSetupPlayerForms();
-}
-
-function renderSetupPlayerForms() {
-  renderTeamPlayerForm("A", "teamAPlayers");
-  renderTeamPlayerForm("B", "teamBPlayers");
-}
-
-function renderTeamPlayerForm(team, containerId) {
-  const container = document.getElementById(containerId);
-  const players = getTeamPlayers(team);
-
-  container.innerHTML = "";
-
-  players.forEach(player => {
-    const row = document.createElement("div");
-    row.className = "player-form-row";
-
-    row.innerHTML = `
-      <input
-        type="number"
-        min="0"
-        max="99"
-        value="${player.number}"
-        data-player-number="${player.id}"
-        aria-label="등번호"
-      />
-
-      <input
-        type="text"
-        value="${escapeHtml(player.name)}"
-        data-player-name="${player.id}"
-        placeholder="선수 이름"
-        aria-label="선수 이름"
-      />
-
-      <button
-        type="button"
-        data-oncourt-player="${player.id}"
-      >
-        ${player.onCourt ? "출전" : "벤치"}
-      </button>
-
-      <button
-        type="button"
-        data-remove-player="${player.id}"
-        aria-label="선수 삭제"
-      >
-        ✕
-      </button>
-    `;
-
-    container.appendChild(row);
-  });
-}
-
-/* =========================
-   설정 입력 반영
-========================= */
-
-function bindSetupFormEvents() {
-  document.addEventListener("input", event => {
-    const numberId = event.target.dataset.playerNumber;
-    const nameId = event.target.dataset.playerName;
-
-    if (numberId) {
-      const player = getPlayer(numberId);
-
-      if (player) {
-        player.number = Number(event.target.value) || 0;
       }
-    }
-
-    if (nameId) {
-      const player = getPlayer(nameId);
-
-      if (player) {
-        player.name =
-          event.target.value.trimStart() || "이름 미입력";
-      }
-    }
-  });
-
-  document.addEventListener("click", event => {
-    const removeId = event.target.dataset.removePlayer;
-    const onCourtId = event.target.dataset.oncourtPlayer;
-
-    if (removeId) {
-      removePlayer(removeId);
-    }
-
-    if (onCourtId) {
-      toggleSetupOnCourt(onCourtId);
-    }
-  });
-}
-
-/* =========================
-   설정 저장
-========================= */
-
-function fillSetupInputs() {
-  document.getElementById("gameDate").value =
-    state.gameDate || "";
-
-  document.getElementById("gameTitle").value =
-    state.gameTitle || "";
-
-  document.getElementById("gameLocation").value =
-    state.gameLocation || "";
-
-  document.getElementById("competitionName").value =
-    state.competitionName || "";
-
-  document.getElementById("teamAName").value =
-    state.teamAName || "";
-
-  document.getElementById("teamBName").value =
-    state.teamBName || "";
-
-  document.getElementById("gameMinutes").value =
-    state.gameMinutes;
-
-  document.getElementById("shotClockSeconds").value =
-    state.shotClockMax;
-
-  document.getElementById("periodType").value =
-    state.periodType;
-
-  document.getElementById("targetScore").value =
-    state.targetScore;
-}
-
-function validateOnCourtPlayers() {
-  const required = getRequiredOnCourtCount();
-
-  const teamACount = getOnCourtPlayers("A").length;
-  const teamBCount = getOnCourtPlayers("B").length;
-
-  if (teamACount !== required || teamBCount !== required) {
-    alert(
-      `${state.mode} 모드는 각 팀 출전 선수가 정확히 ${required}명이어야 해용.\n현재 A팀 ${teamACount}명, B팀 ${teamBCount}명이에용.`
     );
 
-    return false;
-  }
 
-  return true;
-}
+  /* 시계 */
 
-function saveSetup() {
-  state.gameDate =
-    document.getElementById("gameDate").value;
-
-  state.gameTitle =
-    document.getElementById("gameTitle").value.trim() ||
-    "농구 경기";
-
-  state.gameLocation =
-    document.getElementById("gameLocation").value.trim() ||
-    "장소 미입력";
-
-  state.competitionName =
-    document.getElementById("competitionName").value.trim() ||
-    "대회명 미입력";
-
-  state.teamAName =
-    document.getElementById("teamAName").value.trim() ||
-    "A팀";
-
-  state.teamBName =
-    document.getElementById("teamBName").value.trim() ||
-    "B팀";
-
-  state.gameMinutes = Math.max(
-    1,
-    Number(document.getElementById("gameMinutes").value) || 10
-  );
-
-  state.shotClockMax = Math.max(
-    1,
-    Number(
-      document.getElementById("shotClockSeconds").value
-    ) || (state.mode === "3x3" ? 14 : 24)
-  );
-
-  state.periodType =
-    document.getElementById("periodType").value;
-
-  state.targetScore = Math.max(
-    0,
-    Number(document.getElementById("targetScore").value) || 0
-  );
-
-  if (!validateOnCourtPlayers()) {
-    return;
-  }
-
-  state.gameSeconds = state.gameMinutes * 60;
-  state.shotClock = state.shotClockMax;
-
-  state.currentPeriod = 1;
-  updateCurrentPeriodLabel();
-
-  state.startedAt = state.startedAt || Date.now();
-  state.gameEnded = false;
-
-  addLog({
-    text: "경기 설정 저장",
-    category: "시스템"
-  });
-
-  saveState();
-  closeSetupPanel();
-  renderAll();
-
-  alert("경기와 선수 설정을 저장했어용.");
-}
-
-/* =========================
-   초기 실행
-========================= */
-
-function initializeAppPartOne() {
-  loadState();
-  loadLeagueState();
-
-  updateCurrentPeriodLabel();
-
-  fillSetupInputs();
-  renderSetupPlayerForms();
-
-  bindNavigation();
-  bindModeButtons();
-  bindSetupPanelButtons();
-  bindSetupFormEvents();
-
-  updateModeButtons();
-}
-
-initializeAppPartOne();
-/* =========================
-   점수 이벤트와 구간 기록
-========================= */
-
-function ensurePlayerPeriodStats(player, period = getPeriodKey()) {
-  if (!player.periodStats) {
-    player.periodStats = {};
-  }
-
-  if (!player.periodStats[period]) {
-    player.periodStats[period] = {
-      pts: 0,
-      reb: 0,
-      ast: 0,
-      stl: 0,
-      blk: 0,
-      to: 0,
-      pf: 0,
-      fgm: 0,
-      fga: 0,
-      courtSeconds: 0,
-      plusMinus: 0
-    };
-  }
-
-  return player.periodStats[period];
-}
-
-function addPlayerPeriodStat(player, key, amount = 1) {
-  const periodStats = ensurePlayerPeriodStats(player);
-
-  if (typeof periodStats[key] !== "number") {
-    periodStats[key] = 0;
-  }
-
-  periodStats[key] += amount;
-}
-
-function getCurrentPeriodTeamScore(team) {
-  return getTeamPlayers(team).reduce((total, player) => {
-    const stats = player.periodStats?.[getPeriodKey()];
-    return total + (stats?.pts || 0);
-  }, 0);
-}
-
-function updatePeriodSummaryRecord() {
-  const period = getPeriodKey();
-
-  let record = state.periodStats.find(
-    item => item.period === period
-  );
-
-  if (!record) {
-    record = {
-      id: createId("period"),
-      period,
-      teamAScore: 0,
-      teamBScore: 0,
-      teamAReb: 0,
-      teamBReb: 0,
-      teamAAst: 0,
-      teamBAst: 0,
-      teamAStl: 0,
-      teamBStl: 0,
-      teamABlk: 0,
-      teamBBlk: 0,
-      teamATo: 0,
-      teamBTo: 0
-    };
-
-    state.periodStats.push(record);
-  }
-
-  const teamAPlayers = getTeamPlayers("A");
-  const teamBPlayers = getTeamPlayers("B");
-
-  function sumPeriod(players, key) {
-    return players.reduce((total, player) => {
-      return (
-        total +
-        (player.periodStats?.[period]?.[key] || 0)
-      );
-    }, 0);
-  }
-
-  record.teamAScore = sumPeriod(teamAPlayers, "pts");
-  record.teamBScore = sumPeriod(teamBPlayers, "pts");
-
-  record.teamAReb = sumPeriod(teamAPlayers, "reb");
-  record.teamBReb = sumPeriod(teamBPlayers, "reb");
-
-  record.teamAAst = sumPeriod(teamAPlayers, "ast");
-  record.teamBAst = sumPeriod(teamBPlayers, "ast");
-
-  record.teamAStl = sumPeriod(teamAPlayers, "stl");
-  record.teamBStl = sumPeriod(teamBPlayers, "stl");
-
-  record.teamABlk = sumPeriod(teamAPlayers, "blk");
-  record.teamBBlk = sumPeriod(teamBPlayers, "blk");
-
-  record.teamATo = sumPeriod(teamAPlayers, "to");
-  record.teamBTo = sumPeriod(teamBPlayers, "to");
-}
-
-/* =========================
-   공격·수비 기여도
-========================= */
-
-function calculateOffenseScore(player) {
-  const missedShots = Math.max(player.fga - player.fgm, 0);
-
-  return (
-    player.pts +
-    player.ast * 1.5 +
-    player.reb * 0.3 -
-    player.to * 1.5 -
-    missedShots * 0.5
-  );
-}
-
-function calculateDefenseScore(player) {
-  return (
-    player.stl * 2.3 +
-    player.blk * 2.2 +
-    player.reb * 0.8 -
-    player.pf * 0.6
-  );
-}
-
-function updatePlayerImpactScores() {
-  state.players.forEach(player => {
-    player.offenseScore = calculateOffenseScore(player);
-    player.defenseScore = calculateDefenseScore(player);
-  });
-}
-
-/* =========================
-   현재 라인업
-========================= */
-
-function getLineupPlayerIds(team) {
-  return getOnCourtPlayers(team)
-    .map(player => player.id)
-    .sort();
-}
-
-function getLineupPlayerNames(team) {
-  return getOnCourtPlayers(team)
-    .map(player => `#${player.number} ${player.name}`)
-    .join(", ");
-}
-
-function getLineupKey(team) {
-  return `${team}:${getLineupPlayerIds(team).join("|")}`;
-}
-
-function getOrCreateLineupRecord(team) {
-  const lineupKey = getLineupKey(team);
-
-  let lineup = state.lineupRecords.find(
-    item => item.key === lineupKey
-  );
-
-  if (!lineup) {
-    lineup = {
-      id: createId("lineup"),
-      key: lineupKey,
-      team,
-      playerIds: getLineupPlayerIds(team),
-      playerNames: getLineupPlayerNames(team),
-      seconds: 0,
-      pointsFor: 0,
-      pointsAgainst: 0,
-      plusMinus: 0
-    };
-
-    state.lineupRecords.push(lineup);
-  }
-
-  return lineup;
-}
-
-function updateCurrentLineupTime() {
-  ["A", "B"].forEach(team => {
-    const lineup = getOrCreateLineupRecord(team);
-    lineup.seconds += 1;
-  });
-}
-
-function applyLineupScoreChange(scoringTeam, points) {
-  const opponent = scoringTeam === "A" ? "B" : "A";
-
-  const scoringLineup = getOrCreateLineupRecord(scoringTeam);
-  const opponentLineup = getOrCreateLineupRecord(opponent);
-
-  scoringLineup.pointsFor += points;
-  scoringLineup.plusMinus += points;
-
-  opponentLineup.pointsAgainst += points;
-  opponentLineup.plusMinus -= points;
-}
-
-function getCurrentLineupPlusMinus(team) {
-  const lineupKey = getLineupKey(team);
-
-  const lineup = state.lineupRecords.find(
-    item => item.key === lineupKey
-  );
-
-  return lineup?.plusMinus || 0;
-}
-
-/* =========================
-   선수 플러스마이너스
-========================= */
-
-function applyPlayerPlusMinus(scoringTeam, points) {
-  state.players.forEach(player => {
-    if (!player.onCourt) {
-      return;
-    }
-
-    const amount =
-      player.team === scoringTeam ? points : -points;
-
-    player.plusMinus += amount;
-    addPlayerPeriodStat(player, "plusMinus", amount);
-  });
-}
-
-/* =========================
-   패스 연결
-========================= */
-
-function recordAssistConnection(assister) {
-  const teammateId =
-    state.lastScorerId &&
-    getPlayer(state.lastScorerId)?.team === assister.team
-      ? state.lastScorerId
-      : null;
-
-  if (!teammateId || teammateId === assister.id) {
-    return;
-  }
-
-  let connection = state.passConnections.find(
-    item =>
-      item.fromPlayerId === assister.id &&
-      item.toPlayerId === teammateId
-  );
-
-  if (!connection) {
-    connection = {
-      id: createId("pass"),
-      team: assister.team,
-      fromPlayerId: assister.id,
-      toPlayerId: teammateId,
-      count: 0
-    };
-
-    state.passConnections.push(connection);
-  }
-
-  connection.count += 1;
-}
-
-/* =========================
-   선수 기록 입력
-========================= */
-
-function bindStatButtons() {
-  document.querySelectorAll(".stat-btn").forEach(button => {
-    button.addEventListener("click", () => {
-      applyStatAction(button.dataset.action);
-    });
-  });
-}
-
-function applyStatAction(action) {
-  const player = getSelectedPlayer();
-
-  if (!player) {
-    alert("먼저 기록할 선수를 선택해주세용.");
-    return;
-  }
-
-  if (state.gameEnded) {
-    alert("이미 종료된 경기예용.");
-    return;
-  }
-
-  pushHistory();
-
-  const handlers = {
-    points1() {
-      applyScoring(player, 1, "자유투 1점 성공", false);
-    },
-
-    points2() {
-      applyScoring(player, 2, "2점슛 성공", true);
-    },
-
-    points3() {
-      applyScoring(player, 3, "3점슛 성공", true);
-    },
-
-    miss() {
-      player.fga += 1;
-      addPlayerPeriodStat(player, "fga", 1);
-
-      addLog({
-        player,
-        text: "슛 실패",
-        category: "슛"
-      });
-    },
-
-    reb() {
-      player.reb += 1;
-      addPlayerPeriodStat(player, "reb", 1);
-
-      addLog({
-        player,
-        text: "리바운드",
-        category: "기록"
-      });
-    },
-
-    ast() {
-      player.ast += 1;
-      addPlayerPeriodStat(player, "ast", 1);
-
-      recordAssistConnection(player);
-
-      addLog({
-        player,
-        text: "어시스트",
-        category: "패스"
-      });
-    },
-
-    stl() {
-      player.stl += 1;
-      addPlayerPeriodStat(player, "stl", 1);
-
-      addLog({
-        player,
-        text: "스틸",
-        category: "수비"
-      });
-    },
-
-    blk() {
-      player.blk += 1;
-      addPlayerPeriodStat(player, "blk", 1);
-
-      addLog({
-        player,
-        text: "블록",
-        category: "수비"
-      });
-    },
-
-    to() {
-      player.to += 1;
-      addPlayerPeriodStat(player, "to", 1);
-
-      addLog({
-        player,
-        text: "턴오버",
-        category: "실책"
-      });
-    },
-
-    pf() {
-      player.pf += 1;
-      addPlayerPeriodStat(player, "pf", 1);
-
-      if (player.team === "A") {
-        state.teamAFouls += 1;
-      } else {
-        state.teamBFouls += 1;
-      }
-
-      addLog({
-        player,
-        text: "개인 파울",
-        category: "파울"
-      });
-
-      checkFoulWarning(player);
-    },
-
-    subIn() {
-      substitutePlayerIn(player);
-    },
-
-    subOut() {
-      substitutePlayerOut(player);
-    }
-  };
-
-  if (!handlers[action]) {
-    return;
-  }
-
-  handlers[action]();
-
-  updatePeriodSummaryRecord();
-  updatePlayerImpactScores();
-
-  saveState();
-  renderAll();
-}
-
-function applyScoring(
-  player,
-  points,
-  description,
-  countAsFieldGoal = true
-) {
-  player.pts += points;
-  addPlayerPeriodStat(player, "pts", points);
-
-  if (countAsFieldGoal) {
-    player.fgm += 1;
-    player.fga += 1;
-
-    addPlayerPeriodStat(player, "fgm", 1);
-    addPlayerPeriodStat(player, "fga", 1);
-  }
-
-  applyPlayerPlusMinus(player.team, points);
-  applyLineupScoreChange(player.team, points);
-
-  state.lastScorerId = player.id;
-
-  addLog({
-    player,
-    text: description,
-    category: "득점"
-  });
-
-  checkTargetScore();
-}
-
-function checkFoulWarning(player) {
-  const warningLimit =
-    state.mode === "3x3" ? 4 : 5;
-
-  if (player.pf === warningLimit - 1) {
-    alert(
-      `${player.name} 선수는 파울 ${player.pf}개로 퇴장 경고 상태예용.`
-    );
-  }
-
-  if (player.pf >= warningLimit) {
-    alert(
-      `${player.name} 선수의 파울이 ${player.pf}개예용. 교체 여부를 확인해주세용.`
-    );
-  }
-}
-
-function checkTargetScore() {
-  if (!state.targetScore || state.targetScore <= 0) {
-    return;
-  }
-
-  const scoreA = getTeamScore("A");
-  const scoreB = getTeamScore("B");
-
-  if (
-    scoreA >= state.targetScore ||
-    scoreB >= state.targetScore
-  ) {
-    stopGameClock();
-
-    const winner =
-      scoreA > scoreB
-        ? state.teamAName
-        : scoreB > scoreA
-        ? state.teamBName
-        : "동점";
-
-    alert(
-      `목표 점수 ${state.targetScore}점에 도달했어용.\n현재 결과: ${winner}`
-    );
-  }
-}
-
-/* =========================
-   선수 교체
-========================= */
-
-function substitutePlayerOut(player) {
-  if (!player.onCourt) {
-    alert(`${player.name} 선수는 이미 벤치에 있어용.`);
-    return;
-  }
-
-  const onCourtCount = getOnCourtPlayers(player.team).length;
-
-  if (onCourtCount <= 1) {
-    alert("코트에는 최소 1명의 선수가 있어야 해용.");
-    return;
-  }
-
-  player.onCourt = false;
-
-  const substitution = {
-    id: createId("sub"),
-    createdAt: Date.now(),
-    period: getPeriodKey(),
-    gameSeconds: state.gameSeconds,
-    team: player.team,
-    outPlayerId: player.id,
-    outPlayerName: player.name,
-    inPlayerId: null,
-    inPlayerName: "",
-    type: "OUT"
-  };
-
-  state.substitutions.unshift(substitution);
-
-  addLog({
-    player,
-    text: "교체 아웃",
-    category: "교체"
-  });
-}
-
-function substitutePlayerIn(player) {
-  if (player.onCourt) {
-    alert(`${player.name} 선수는 이미 출전 중이에용.`);
-    return;
-  }
-
-  const required = getRequiredOnCourtCount();
-  const currentOnCourt = getOnCourtPlayers(player.team);
-
-  if (currentOnCourt.length >= required) {
-    alert(
-      `${player.team}팀은 현재 ${currentOnCourt.length}명이 출전 중이에용. 먼저 교체 아웃할 선수를 선택해주세용.`
-    );
-    return;
-  }
-
-  player.onCourt = true;
-
-  const pendingOut = state.substitutions.find(
-    item =>
-      item.team === player.team &&
-      item.type === "OUT" &&
-      !item.inPlayerId
-  );
-
-  if (pendingOut) {
-    pendingOut.inPlayerId = player.id;
-    pendingOut.inPlayerName = player.name;
-    pendingOut.type = "CHANGE";
-  } else {
-    state.substitutions.unshift({
-      id: createId("sub"),
-      createdAt: Date.now(),
-      period: getPeriodKey(),
-      gameSeconds: state.gameSeconds,
-      team: player.team,
-      outPlayerId: null,
-      outPlayerName: "",
-      inPlayerId: player.id,
-      inPlayerName: player.name,
-      type: "IN"
-    });
-  }
-
-  addLog({
-    player,
-    text: "선수 투입",
-    category: "교체"
-  });
-}
-
-/* =========================
-   선수 선택 카드
-========================= */
-
-function renderOnCourtPlayers() {
-  renderOnCourtTeam("A", "teamAOnCourt");
-  renderOnCourtTeam("B", "teamBOnCourt");
-}
-
-function renderOnCourtTeam(team, containerId) {
-  const container = document.getElementById(containerId);
-
-  if (!container) {
-    return;
-  }
-
-  const players = getTeamPlayers(team);
-
-  container.innerHTML = "";
-
-  players.forEach(player => {
-    const button = document.createElement("button");
-
-    button.type = "button";
-
-    button.className = [
-      "player-live-card",
-      team === "A" ? "team-a-card" : "team-b-card",
-      state.selectedPlayerId === player.id
-        ? "selected"
-        : "",
-      player.onCourt ? "" : "out"
-    ]
-      .filter(Boolean)
-      .join(" ");
-
-    button.innerHTML = `
-      <span class="number">${player.number}</span>
-
-      <span class="name">
-        ${escapeHtml(player.name)}
-      </span>
-
-      <span class="points">
-        ${player.pts} PTS · ${formatTime(player.courtSeconds)}
-      </span>
-    `;
-
-    button.addEventListener("click", () => {
-      state.selectedPlayerId = player.id;
-
-      saveState();
-      renderAll();
-    });
-
-    container.appendChild(button);
-  });
-}
-
-/* =========================
-   경기 시계
-========================= */
-
-function bindClockButtons() {
   document
     .getElementById("startClockBtn")
-    .addEventListener("click", startGameClock);
+    ?.addEventListener(
+      "click",
+      startClock
+    );
+
 
   document
     .getElementById("pauseClockBtn")
-    .addEventListener("click", stopGameClock);
+    ?.addEventListener(
+      "click",
+      pauseClock
+    );
+
 
   document
     .getElementById("resetShotClockBtn")
-    .addEventListener("click", resetShotClock);
-}
+    ?.addEventListener(
+      "click",
+      resetShotClock
+    );
 
-function startGameClock() {
-  if (state.gameEnded) {
-    alert("종료된 경기예용.");
-    return;
-  }
 
-  if (gameTimer) {
-    return;
-  }
+  /* 빠른 기능 */
 
-  if (state.gameSeconds <= 0) {
-    alert("경기 시간이 0초예용. 다음 구간으로 이동해주세용.");
-    return;
-  }
+  document
+    .getElementById("undoLastActionBtn")
+    ?.addEventListener(
+      "click",
+      undoLastAction
+    );
 
-  state.clockRunning = true;
-  state.startedAt = state.startedAt || Date.now();
 
-  gameTimer = window.setInterval(() => {
-    gameClockTick();
-  }, 1000);
-
-  saveState();
-  renderScoreboard();
-}
-
-function gameClockTick() {
-  if (!state.clockRunning) {
-    return;
-  }
-
-  if (state.gameSeconds > 0) {
-    state.gameSeconds -= 1;
-  }
-
-  if (state.shotClock > 0) {
-    state.shotClock -= 1;
-  }
-
-  state.players.forEach(player => {
-    if (player.onCourt) {
-      player.courtSeconds += 1;
-      addPlayerPeriodStat(player, "courtSeconds", 1);
-    }
-  });
-
-  updateCurrentLineupTime();
-
-  if (state.shotClock <= 0) {
-    state.shotClock = 0;
-    stopGameClock();
-
-    addLog({
-      text: "샷클락 종료",
-      category: "시계"
-    });
-
-    alert("샷클락이 종료됐어용.");
-  }
-
-  if (state.gameSeconds <= 0) {
-    state.gameSeconds = 0;
-    stopGameClock();
-
-    addLog({
-      text: `${getPeriodKey()} 경기 시간 종료`,
-      category: "시계"
-    });
-
-    alert(`${getPeriodKey()} 경기 시간이 종료됐어용.`);
-  }
-
-  saveState();
-  renderScoreboard();
-  renderSelectedPlayerHeader();
-  renderOnCourtPlayers();
-}
-
-function stopGameClock() {
-  state.clockRunning = false;
-
-  if (gameTimer) {
-    clearInterval(gameTimer);
-    gameTimer = null;
-  }
-
-  saveState();
-  renderScoreboard();
-}
-
-function resetShotClock() {
-  state.shotClock = state.shotClockMax;
-
-  addLog({
-    text: `샷클락 ${state.shotClockMax}초 재설정`,
-    category: "시계"
-  });
-
-  saveState();
-  renderScoreboard();
-  renderRecentLogs();
-}
-
-/* =========================
-   다음 구간
-========================= */
-
-function bindPeriodButtons() {
   document
     .getElementById("nextPeriodBtn")
-    .addEventListener("click", moveToNextPeriod);
-}
+    ?.addEventListener(
+      "click",
+      nextPeriod
+    );
 
-function moveToNextPeriod() {
-  const labels = getPeriodLabels();
 
-  if (state.currentPeriod >= labels.length) {
-    alert("마지막 경기 구간이에용.");
-    return;
-  }
-
-  stopGameClock();
-  updatePeriodSummaryRecord();
-
-  state.currentPeriod += 1;
-  updateCurrentPeriodLabel();
-
-  state.gameSeconds = state.gameMinutes * 60;
-  state.shotClock = state.shotClockMax;
-
-  state.teamAFouls = 0;
-  state.teamBFouls = 0;
-
-  addLog({
-    text: `${getPeriodKey()} 시작`,
-    category: "구간"
-  });
-
-  saveState();
-  renderAll();
-}
-
-/* =========================
-   타임아웃
-========================= */
-
-function bindTimeoutButtons() {
   document
     .getElementById("teamATimeoutBtn")
-    .addEventListener("click", () => {
-      useTimeout("A");
-    });
+    ?.addEventListener(
+      "click",
+      () => useTimeout("A")
+    );
+
 
   document
     .getElementById("teamBTimeoutBtn")
-    .addEventListener("click", () => {
-      useTimeout("B");
-    });
-}
+    ?.addEventListener(
+      "click",
+      () => useTimeout("B")
+    );
 
-function useTimeout(team) {
-  const key =
-    team === "A"
-      ? "teamATimeouts"
-      : "teamBTimeouts";
 
-  if (state[key] <= 0) {
-    alert(`${getTeamName(team)}의 남은 타임아웃이 없어용.`);
-    return;
-  }
-
-  state[key] -= 1;
-  stopGameClock();
-
-  addLog({
-    team,
-    text: "타임아웃 사용",
-    category: "타임아웃"
-  });
-
-  saveState();
-  renderAll();
-}
-
-/* =========================
-   실행 취소·기록 삭제
-========================= */
-
-function bindHistoryButtons() {
-  document
-    .getElementById("undoLastActionBtn")
-    .addEventListener("click", undoLastAction);
-
-  document
-    .getElementById("clearRecentLogsBtn")
-    .addEventListener("click", clearRecentLogs);
-
-  document
-    .getElementById("clearRecentOnlyBtn")
-    .addEventListener("click", clearRecentLogs);
-}
-
-function undoLastAction() {
-  const snapshot = state.history.pop();
-
-  if (!snapshot) {
-    alert("취소할 기록이 없어용.");
-    return;
-  }
-
-  restoreHistorySnapshot(snapshot);
-
-  saveState();
-  renderAll();
-}
-
-function clearRecentLogs() {
-  const confirmed = confirm(
-    "최근 기록 목록을 모두 삭제할까용?"
-  );
-
-  if (!confirmed) {
-    return;
-  }
-
-  state.logs = [];
-
-  saveState();
-  renderRecentLogs();
-}
-
-/* =========================
-   경기 종료·초기화
-========================= */
-
-function bindGameControlButtons() {
   document
     .getElementById("endGameBtn")
-    .addEventListener("click", endGame);
+    ?.addEventListener(
+      "click",
+      endGame
+    );
+
 
   document
     .getElementById("resetGameBtn")
-    .addEventListener("click", resetCurrentGame);
+    ?.addEventListener(
+      "click",
+      resetGame
+    );
+
+
+  document
+    .getElementById("saveGameBtn")
+    ?.addEventListener(
+      "click",
+      saveGame
+    );
+
+
+  document
+    .getElementById("loadGameDataBtn")
+    ?.addEventListener(
+      "click",
+      loadSavedGame
+    );
+
+
+  document
+    .getElementById("clearRecentLogsBtn")
+    ?.addEventListener(
+      "click",
+      clearRecentLogs
+    );
+
+
+  document
+    .getElementById("clearRecentOnlyBtn")
+    ?.addEventListener(
+      "click",
+      clearRecentLogs
+    );
+
+
+  /* 네비게이션 */
+
+  document
+    .querySelectorAll(
+      ".nav-btn[data-tab]"
+    )
+    .forEach(
+      button => {
+
+        button.addEventListener(
+          "click",
+          () => {
+
+            openTab(
+              button.dataset.tab
+            );
+
+          }
+        );
+
+      }
+    );
+
+
+  /* 기록 */
+
+  document
+    .getElementById("recordFilterTeam")
+    ?.addEventListener(
+      "change",
+      renderRecords
+    );
+
+
+  document
+    .getElementById("recordFilterPeriod")
+    ?.addEventListener(
+      "change",
+      renderRecords
+    );
+
+
+  document
+    .getElementById("playerDetailSelect")
+    ?.addEventListener(
+      "change",
+      renderPlayerDetail
+    );
+
+
+  /* 슛차트 */
+
+  document
+    .getElementById("recordMadeShotBtn")
+    ?.addEventListener(
+      "click",
+      () => setShotMode("made")
+    );
+
+
+  document
+    .getElementById("recordMissShotBtn")
+    ?.addEventListener(
+      "click",
+      () => setShotMode("miss")
+    );
+
+
+  document
+    .getElementById("clearShotChartBtn")
+    ?.addEventListener(
+      "click",
+      clearShots
+    );
+
+
+  document
+    .getElementById("shotPlayerSelect")
+    ?.addEventListener(
+      "change",
+      renderShotChart
+    );
+
+
+  document
+    .getElementById("shotViewMode")
+    ?.addEventListener(
+      "change",
+      renderShotChart
+    );
+
+
+  document
+    .getElementById("shotPeriodFilter")
+    ?.addEventListener(
+      "change",
+      renderShotChart
+    );
+
+
+  /* 영상 */
+
+  bindVideoEvents();
+
+
+  /* 리포트 */
+
+  document
+    .getElementById("generateGameReportBtn")
+    ?.addEventListener(
+      "click",
+      generateGameReport
+    );
+
+
+  document
+    .getElementById("generatePlayerReportBtn")
+    ?.addEventListener(
+      "click",
+      generatePlayerReport
+    );
+
+
+  document
+    .getElementById("generateTrainingBtn")
+    ?.addEventListener(
+      "click",
+      generateTraining
+    );
+
+
+  document
+    .getElementById("printReportBtn")
+    ?.addEventListener(
+      "click",
+      () => window.print()
+    );
+
+
+  /* 리그 */
+
+  bindLeagueEvents();
+
 }
 
-function endGame() {
-  const confirmed = confirm(
-    "현재 경기를 종료할까용?"
+
+/* =========================================================
+   06. 모드 변경
+========================================================= */
+
+function setMode(mode) {
+
+  state.mode = mode;
+
+  const is3v3 =
+    mode === "3v3";
+
+
+  const btn3 =
+    document.getElementById(
+      "mode3v3Btn"
+    );
+
+  const btn5 =
+    document.getElementById(
+      "mode5v5Btn"
+    );
+
+
+  btn3?.classList.toggle(
+    "active",
+    is3v3
   );
 
-  if (!confirmed) {
-    return;
-  }
+  btn5?.classList.toggle(
+    "active",
+    !is3v3
+  );
 
-  stopGameClock();
-  updatePeriodSummaryRecord();
-  updatePlayerImpactScores();
 
-  state.gameEnded = true;
-  state.endedAt = Date.now();
+  updateModeButtonLabels();
 
-  addLog({
-    text: "경기 종료",
-    category: "시스템"
-  });
+  updateModeLabel();
 
-  saveState();
+  renderOnCourt();
+
   renderAll();
 
-  alert("경기를 종료했어용. 리포트와 경기 저장을 확인해용.");
 }
 
-function resetCurrentGame() {
-  const confirmed = confirm(
-    "현재 경기 기록을 모두 초기화할까용?\n리그 데이터는 유지돼용."
-  );
 
-  if (!confirmed) {
-    return;
+/* =========================================================
+   07. 3대3 / 5대5 버튼 표시
+========================================================= */
+
+function updateModeButtonLabels() {
+
+  const points1 =
+    document.querySelector(
+      '[data-action="points1"]'
+    );
+
+  const points2 =
+    document.querySelector(
+      '[data-action="points2"]'
+    );
+
+  const points3 =
+    document.querySelector(
+      '[data-action="points3"]'
+    );
+
+
+  if (!points1) return;
+
+
+  if (
+    state.mode === "3v3"
+  ) {
+
+    points1.querySelector(
+      "strong"
+    ).textContent = "+1";
+
+    points1.querySelector(
+      "span"
+    ).textContent =
+      "자유투 성공";
+
+
+    points2.querySelector(
+      "strong"
+    ).textContent = "+1";
+
+    points2.querySelector(
+      "span"
+    ).textContent =
+      "1점 성공";
+
+
+    points3.querySelector(
+      "strong"
+    ).textContent = "+2";
+
+    points3.querySelector(
+      "span"
+    ).textContent =
+      "2점 성공";
+
   }
 
-  stopGameClock();
+  else {
 
-  const previousMode = state.mode;
+    points1.querySelector(
+      "strong"
+    ).textContent = "+1";
 
-  state = {
-    ...deepClone(defaultState),
-    mode: previousMode,
-    shotClockMax: previousMode === "3x3" ? 14 : 24,
-    shotClock: previousMode === "3x3" ? 14 : 24
-  };
+    points1.querySelector(
+      "span"
+    ).textContent =
+      "자유투 성공";
 
-  state.players = createPlayersForMode(previousMode);
-  state.selectedPlayerId = state.players[0]?.id || null;
 
-  updateCurrentPeriodLabel();
+    points2.querySelector(
+      "strong"
+    ).textContent = "+2";
 
-  localStorage.removeItem(STORAGE_KEY);
-  saveState();
+    points2.querySelector(
+      "span"
+    ).textContent =
+      "2점 성공";
 
-  fillSetupInputs();
-  renderSetupPlayerForms();
+
+    points3.querySelector(
+      "strong"
+    ).textContent = "+3";
+
+    points3.querySelector(
+      "span"
+    ).textContent =
+      "3점 성공";
+
+  }
+
+}
+
+
+/* =========================================================
+   08. 설정
+========================================================= */
+
+function toggleSetup() {
+
+  document
+    .getElementById(
+      "setupPanel"
+    )
+    ?.classList.toggle(
+      "open"
+    );
+
+}
+
+
+function closeSetup() {
+
+  document
+    .getElementById(
+      "setupPanel"
+    )
+    ?.classList.remove(
+      "open"
+    );
+
+}
+
+
+function saveSetup() {
+
+  state.game.title =
+    value("gameTitle")
+    || "농구 경기";
+
+
+  state.game.location =
+    value("gameLocation");
+
+
+  state.game.date =
+    value("gameDate");
+
+
+  state.game.competition =
+    value("competitionName");
+
+
+  state.game.minutes =
+    numberValue(
+      "gameMinutes",
+      10
+    );
+
+
+  state.game.shotClockMax =
+    numberValue(
+      "shotClockSeconds",
+      14
+    );
+
+
+  state.game.targetScore =
+    numberValue(
+      "targetScore",
+      21
+    );
+
+
+  state.game.periodType =
+    value("periodType")
+    || "single";
+
+
+  state.game.clockSeconds =
+    state.game.minutes * 60;
+
+
+  state.game.shotClock =
+    state.game.shotClockMax;
+
+
+  state.teams.A.name =
+    value("teamAName")
+    || "설천고 A";
+
+
+  state.teams.B.name =
+    value("teamBName")
+    || "설천고 B";
+
+
+  readPlayersFromSetup(
+    "A"
+  );
+
+  readPlayersFromSetup(
+    "B"
+  );
+
+
+  closeSetup();
+
   renderAll();
-  openSetupPanel();
+
 }
 
-/* =========================
-   헤더와 점수판 렌더링
-========================= */
 
-function renderLiveGameInfo() {
-  document.getElementById("liveGameTitle").textContent =
-    state.gameTitle || "농구 경기";
+/* =========================================================
+   09. 설정값 불러오기
+========================================================= */
 
-  document.getElementById("liveGameMode").textContent =
-    state.mode === "3x3" ? "3대3" : "5대5";
+function loadSetupValues() {
 
-  document.getElementById("liveGameLocation").textContent =
-    state.gameLocation || "미입력";
-
-  document.getElementById("liveGameDate").textContent =
-    state.gameDate || "미입력";
-}
-
-function renderTeamHeaders() {
-  const teamAPlayers = getTeamPlayers("A");
-  const teamBPlayers = getTeamPlayers("B");
-
-  document.getElementById("teamANameDisplay").textContent =
-    state.teamAName;
-
-  document.getElementById("teamBNameDisplay").textContent =
-    state.teamBName;
-
-  document.getElementById("scoreboardTeamA").textContent =
-    state.teamAName;
-
-  document.getElementById("scoreboardTeamB").textContent =
-    state.teamBName;
-
-  document.getElementById("teamAPlayerCount").textContent =
-    `선수 ${teamAPlayers.length}명`;
-
-  document.getElementById("teamBPlayerCount").textContent =
-    `선수 ${teamBPlayers.length}명`;
-}
-
-function renderScoreboard() {
-  const scoreA = getTeamScore("A");
-  const scoreB = getTeamScore("B");
-
-  document.getElementById("teamAScore").textContent = scoreA;
-  document.getElementById("teamBScore").textContent = scoreB;
-
-  document.getElementById("scoreboardAValue").textContent =
-    scoreA;
-
-  document.getElementById("scoreboardBValue").textContent =
-    scoreB;
-
-  document.getElementById("gameClock").textContent =
-    formatTime(state.gameSeconds);
-
-  document.getElementById("shotClock").textContent =
-    state.shotClock;
-
-  document.getElementById("quarterLabel").textContent =
-    getPeriodKey();
-
-  document.getElementById("teamAFouls").textContent =
-    state.teamAFouls;
-
-  document.getElementById("teamBFouls").textContent =
-    state.teamBFouls;
-
-  document.getElementById("scoreboardAFouls").textContent =
-    state.teamAFouls;
-
-  document.getElementById("scoreboardBFouls").textContent =
-    state.teamBFouls;
-
-  document.getElementById("teamATimeouts").textContent =
-    state.teamATimeouts;
-
-  document.getElementById("teamBTimeouts").textContent =
-    state.teamBTimeouts;
-
-  document.getElementById("scoreboardATimeouts").textContent =
-    state.teamATimeouts;
-
-  document.getElementById("scoreboardBTimeouts").textContent =
-    state.teamBTimeouts;
-
-  document.getElementById(
-    "teamALineupPlusMinus"
-  ).textContent = formatSignedNumber(
-    getCurrentLineupPlusMinus("A")
+  setValue(
+    "gameDate",
+    new Date()
+      .toISOString()
+      .slice(0, 10)
   );
 
-  document.getElementById(
-    "teamBLineupPlusMinus"
-  ).textContent = formatSignedNumber(
-    getCurrentLineupPlusMinus("B")
+
+  setValue(
+    "gameTitle",
+    state.game.title
   );
+
+
+  setValue(
+    "teamAName",
+    state.teams.A.name
+  );
+
+
+  setValue(
+    "teamBName",
+    state.teams.B.name
+  );
+
+
+  setValue(
+    "gameMinutes",
+    state.game.minutes
+  );
+
+
+  setValue(
+    "shotClockSeconds",
+    state.game.shotClockMax
+  );
+
+
+  setValue(
+    "targetScore",
+    state.game.targetScore
+  );
+
 }
 
-function formatSignedNumber(value) {
-  const number = Number(value) || 0;
 
-  if (number > 0) {
-    return `+${number}`;
+/* =========================================================
+   10. 선수 추가
+========================================================= */
+
+function addPlayer(team) {
+
+  const players =
+    state.teams[team].players;
+
+
+  const nextNumber =
+    players.length
+      ? Math.max(
+          ...players.map(
+            player =>
+              Number(
+                player.number
+              ) || 0
+          )
+        ) + 1
+      : 1;
+
+
+  players.push(
+    createPlayer(
+      team,
+      nextNumber,
+      `${team}팀 선수 ${nextNumber}`,
+      false
+    )
+  );
+
+
+  renderSetupPlayers(
+    team
+  );
+
+
+  renderOnCourt();
+
+}
+
+
+/* =========================================================
+   11. 설정 선수 화면
+========================================================= */
+
+function renderSetupPlayers(
+  team
+) {
+
+  const container =
+    document.getElementById(
+      `team${team}Players`
+    );
+
+
+  if (!container) return;
+
+
+  container.innerHTML =
+    state.teams[team]
+      .players
+      .map(
+        player => `
+
+          <div
+            class="player-form-row"
+            data-player-id="${player.id}"
+          >
+
+            <input
+              type="number"
+              value="${player.number}"
+              data-player-number
+            >
+
+            <input
+              type="text"
+              value="${escapeHTML(
+                player.name
+              )}"
+              data-player-name
+            >
+
+            <button
+              type="button"
+              data-oncourt-player
+            >
+              ${
+                player.onCourt
+                  ? "출전 중"
+                  : "대기"
+              }
+            </button>
+
+            <button
+              type="button"
+              data-remove-player
+            >
+              ×
+            </button>
+
+          </div>
+
+        `
+      )
+      .join("");
+
+
+  container
+    .querySelectorAll(
+      "[data-player-id]"
+    )
+    .forEach(
+      row => {
+
+        const id =
+          row.dataset.playerId;
+
+
+        row
+          .querySelector(
+            "[data-player-number]"
+          )
+          ?.addEventListener(
+            "change",
+            event => {
+
+              const player =
+                findPlayer(id);
+
+              if (player) {
+
+                player.number =
+                  Number(
+                    event.target.value
+                  );
+
+                renderOnCourt();
+
+              }
+
+            }
+          );
+
+
+        row
+          .querySelector(
+            "[data-player-name]"
+          )
+          ?.addEventListener(
+            "change",
+            event => {
+
+              const player =
+                findPlayer(id);
+
+              if (player) {
+
+                player.name =
+                  event.target.value;
+
+                renderOnCourt();
+
+              }
+
+            }
+          );
+
+
+        row
+          .querySelector(
+            "[data-oncourt-player]"
+          )
+          ?.addEventListener(
+            "click",
+            () => {
+
+              toggleOnCourt(
+                id
+              );
+
+            }
+          );
+
+
+        row
+          .querySelector(
+            "[data-remove-player]"
+          )
+          ?.addEventListener(
+            "click",
+            () => {
+
+              removePlayer(
+                id
+              );
+
+            }
+          );
+
+      }
+    );
+
+}
+
+
+/* =========================================================
+   12. 모든 선수 설정 렌더링
+========================================================= */
+
+function renderSetup() {
+
+  renderSetupPlayers("A");
+
+  renderSetupPlayers("B");
+
+}
+
+
+/* =========================================================
+   13. 설정 화면에서 선수 읽기
+========================================================= */
+
+function readPlayersFromSetup(
+  team
+) {
+
+  const container =
+    document.getElementById(
+      `team${team}Players`
+    );
+
+
+  if (!container) return;
+
+
+  container
+    .querySelectorAll(
+      "[data-player-id]"
+    )
+    .forEach(
+      row => {
+
+        const player =
+          findPlayer(
+            row.dataset.playerId
+          );
+
+
+        if (!player) return;
+
+
+        const numberInput =
+          row.querySelector(
+            "[data-player-number]"
+          );
+
+
+        const nameInput =
+          row.querySelector(
+            "[data-player-name]"
+          );
+
+
+        if (numberInput) {
+
+          player.number =
+            Number(
+              numberInput.value
+            ) || player.number;
+
+        }
+
+
+        if (nameInput) {
+
+          player.name =
+            nameInput.value.trim()
+            || player.name;
+
+        }
+
+      }
+    );
+
+}
+
+
+/* =========================================================
+   14. 출전 토글
+========================================================= */
+
+function toggleOnCourt(
+  playerId
+) {
+
+  const player =
+    findPlayer(
+      playerId
+    );
+
+
+  if (!player) return;
+
+
+  const team =
+    state.teams[
+      player.team
+    ];
+
+
+  const maxPlayers =
+    state.mode === "3v3"
+      ? 3
+      : 5;
+
+
+  if (
+    !player.onCourt &&
+    team.players.filter(
+      p => p.onCourt
+    ).length >= maxPlayers
+  ) {
+
+    alert(
+      `${state.mode === "3v3" ? "3대3" : "5대5"}에서는 최대 ${maxPlayers}명까지 출전할 수 있어용.`
+    );
+
+    return;
+
   }
 
-  return String(number);
+
+  player.onCourt =
+    !player.onCourt;
+
+
+  renderSetup();
+
+  renderOnCourt();
+
 }
 
-/* =========================
-   선택 선수 표시
-========================= */
 
-function renderSelectedPlayerHeader() {
-  const player = getSelectedPlayer();
+/* =========================================================
+   15. 선수 삭제
+========================================================= */
 
-  if (!player) {
+function removePlayer(
+  playerId
+) {
+
+  const player =
+    findPlayer(
+      playerId
+    );
+
+
+  if (!player) return;
+
+
+  const team =
+    state.teams[
+      player.team
+    ];
+
+
+  team.players =
+    team.players.filter(
+      p =>
+        p.id !== playerId
+    );
+
+
+  if (
+    state.selectedPlayerId ===
+    playerId
+  ) {
+
+    state.selectedPlayerId =
+      null;
+
+  }
+
+
+  renderSetup();
+
+  renderOnCourt();
+
+  renderRecords();
+
+}
+
+
+/* =========================================================
+   16. 선수 선택
+========================================================= */
+
+function selectPlayer(
+  playerId
+) {
+
+  state.selectedPlayerId =
+    playerId;
+
+
+  renderOnCourt();
+
+  renderSelectedPlayer();
+
+  renderRecentLogs();
+
+}
+
+
+/* =========================================================
+   17. 현재 선수 찾기
+========================================================= */
+
+function getSelectedPlayer() {
+
+  return findPlayer(
+    state.selectedPlayerId
+  );
+
+}
+
+
+/* =========================================================
+   18. 선수 찾기
+========================================================= */
+
+function findPlayer(
+  playerId
+) {
+
+  if (!playerId) return null;
+
+
+  for (
+    const teamKey of ["A", "B"]
+  ) {
+
+    const player =
+      state.teams[
+        teamKey
+      ]
+      .players
+      .find(
+        p =>
+          p.id === playerId
+      );
+
+
+    if (player) return player;
+
+  }
+
+
+  return null;
+
+}
+
+
+/* =========================================================
+   19. 라이브 선수 카드
+========================================================= */
+
+function renderOnCourt() {
+
+  renderTeamOnCourt(
+    "A"
+  );
+
+  renderTeamOnCourt(
+    "B"
+  );
+
+
+  updateModeLabel();
+
+}
+
+
+/* =========================================================
+   20. 팀 출전 선수
+========================================================= */
+
+function renderTeamOnCourt(
+  team
+) {
+
+  const container =
+    document.getElementById(
+      `team${team}OnCourt`
+    );
+
+
+  if (!container) return;
+
+
+  const players =
+    state.teams[team]
+      .players;
+
+
+  container.innerHTML =
+    players
+      .map(
+        player => `
+
+          <button
+            class="
+              player-live-card
+              ${
+                team === "A"
+                  ? "team-a-card"
+                  : "team-b-card"
+              }
+              ${
+                player.onCourt
+                  ? ""
+                  : "out"
+              }
+              ${
+                player.id ===
+                state.selectedPlayerId
+                  ? "selected"
+                  : ""
+              }
+            "
+            data-live-player="${player.id}"
+            type="button"
+          >
+
+            <span class="number">
+              ${escapeHTML(
+                player.number
+              )}
+            </span>
+
+            <span class="name">
+              ${escapeHTML(
+                player.name
+              )}
+            </span>
+
+            <span class="points">
+              PTS ${player.stats.pts}
+            </span>
+
+          </button>
+
+        `
+      )
+      .join("");
+
+
+  container
+    .querySelectorAll(
+      "[data-live-player]"
+    )
+    .forEach(
+      button => {
+
+        button.addEventListener(
+          "click",
+          () => {
+
+            selectPlayer(
+              button.dataset.livePlayer
+            );
+
+          }
+        );
+
+      }
+    );
+
+}
+
+
+/* =========================================================
+   21. 선택 선수
+========================================================= */
+
+function renderSelectedPlayer() {
+
+  const player =
+    getSelectedPlayer();
+
+
+  const name =
     document.getElementById(
       "selectedPlayerName"
-    ).textContent = "선수를 선택해주세용";
+    );
 
+
+  const info =
     document.getElementById(
       "selectedPlayerLiveInfo"
-    ).textContent = "출전 시간 00:00 · +/- 0";
+    );
 
+
+  const teamTag =
     document.getElementById(
       "selectedPlayerTeamTag"
-    ).textContent = "팀 선택 대기";
+    );
+
+
+  if (!player) {
+
+    if (name)
+      name.textContent =
+        "선수를 선택해주세용";
+
+
+    if (info)
+      info.textContent =
+        "출전 시간 00:00 · +/- 0";
+
+
+    if (teamTag)
+      teamTag.textContent =
+        "팀 선택 대기";
+
 
     return;
+
   }
 
-  document.getElementById(
-    "selectedPlayerName"
-  ).textContent = `#${player.number} ${player.name}`;
 
-  document.getElementById(
-    "selectedPlayerLiveInfo"
-  ).textContent =
-    `출전 시간 ${formatTime(player.courtSeconds)} · +/- ${formatSignedNumber(
-      player.plusMinus
-    )}`;
+  if (name) {
 
-  document.getElementById(
-    "selectedPlayerTeamTag"
-  ).textContent =
-    `${getTeamName(player.team)} · ${
-      player.onCourt ? "출전 중" : "벤치"
-    }`;
+    name.textContent =
+      `#${player.number} ${player.name}`;
+
+  }
+
+
+  if (info) {
+
+    info.textContent =
+      `출전 시간 ${formatSeconds(
+        player.secondsPlayed
+      )} · +/- ${player.stats.plusMinus}`;
+
+  }
+
+
+  if (teamTag) {
+
+    teamTag.textContent =
+      player.team === "A"
+        ? "A TEAM"
+        : "B TEAM";
+
+  }
+
 }
 
-/* =========================
-   최근 기록 렌더링
-========================= */
 
-function renderRecentLogs() {
-  const container = document.getElementById(
-    "recentLogList"
-  );
+/* =========================================================
+   22. 액션 처리
+========================================================= */
 
-  if (!container) {
+function handlePlayerAction(
+  action
+) {
+
+  const player =
+    getSelectedPlayer();
+
+
+  if (!player) {
+
+    alert(
+      "먼저 선수를 선택해주세용."
+    );
+
     return;
+
   }
 
-  if (state.logs.length === 0) {
+
+  switch (action) {
+
+    case "points1":
+
+      recordShotAction(
+        player,
+        "FT",
+        true
+      );
+
+      break;
+
+
+    case "points2":
+
+      recordShotAction(
+        player,
+        "2PT",
+        true
+      );
+
+      break;
+
+
+    case "points3":
+
+      recordShotAction(
+        player,
+        "3PT",
+        true
+      );
+
+      break;
+
+
+    case "miss":
+
+      recordShotAction(
+        player,
+        "MISS",
+        false
+      );
+
+      break;
+
+
+    case "reb":
+
+      addStat(
+        player,
+        "reb",
+        1,
+        "리바운드"
+      );
+
+      break;
+
+
+    case "ast":
+
+      addStat(
+        player,
+        "ast",
+        1,
+        "어시스트"
+      );
+
+      break;
+
+
+    case "stl":
+
+      addStat(
+        player,
+        "stl",
+        1,
+        "스틸"
+      );
+
+      break;
+
+
+    case "blk":
+
+      addStat(
+        player,
+        "blk",
+        1,
+        "블록"
+      );
+
+      break;
+
+
+    case "to":
+
+      addStat(
+        player,
+        "to",
+        1,
+        "턴오버"
+      );
+
+      break;
+
+
+    case "pf":
+
+      addFoul(
+        player
+      );
+
+      break;
+
+
+    case "subIn":
+
+      player.onCourt =
+        true;
+
+      renderAll();
+
+      break;
+
+
+    case "subOut":
+
+      player.onCourt =
+        false;
+
+      renderAll();
+
+      break;
+
+  }
+
+}
+
+
+/* =========================================================
+   23. 슛 기록
+========================================================= */
+
+function recordShotAction(
+  player,
+  shotType,
+  made
+) {
+
+  const oldState =
+    cloneStateForUndo();
+
+
+  let points =
+    0;
+
+
+  /* 자유투 */
+
+  if (
+    shotType === "FT"
+  ) {
+
+    player.stats.fta += 1;
+
+
+    if (made) {
+
+      player.stats.ft += 1;
+
+      points = 1;
+
+      player.stats.pts += 1;
+
+    }
+
+  }
+
+
+  /* 2점 버튼 */
+
+  else if (
+    shotType === "2PT"
+  ) {
+
+    player.stats.fga += 1;
+
+    player.stats.fga2 += 1;
+
+
+    if (made) {
+
+      player.stats.fg += 1;
+
+      player.stats.fg2 += 1;
+
+
+      points =
+        state.mode === "3v3"
+          ? 1
+          : 2;
+
+
+      player.stats.pts +=
+        points;
+
+    }
+
+  }
+
+
+  /* 3점 버튼 */
+
+  else if (
+    shotType === "3PT"
+  ) {
+
+    player.stats.fga += 1;
+
+    player.stats.fga3 += 1;
+
+
+    if (made) {
+
+      player.stats.fg += 1;
+
+      player.stats.fg3 += 1;
+
+
+      points =
+        state.mode === "3v3"
+          ? 2
+          : 3;
+
+
+      player.stats.pts +=
+        points;
+
+    }
+
+  }
+
+
+  /* 일반 실패 */
+
+  else {
+
+    player.stats.fga += 1;
+
+  }
+
+
+  /* 팀 점수 */
+
+  if (
+    points > 0
+  ) {
+
+    addTeamScore(
+      player.team,
+      points
+    );
+
+  }
+
+
+  /* +/- */
+
+  if (
+    points > 0
+  ) {
+
+    updatePlusMinus(
+      player.team,
+      points
+    );
+
+  }
+
+
+  /* 액션 기록 */
+
+  pushAction({
+
+    type: "shot",
+
+    playerId:
+      player.id,
+
+    shotType,
+
+    made,
+
+    points,
+
+    team:
+      player.team
+
+  }, oldState);
+
+
+  /* 슛차트 */
+
+  state.shots.push({
+
+    id:
+      cryptoRandomId(),
+
+    playerId:
+      player.id,
+
+    team:
+      player.team,
+
+    type:
+      shotType,
+
+    made,
+
+    points,
+
+    period:
+      state.game.period,
+
+    x:
+      null,
+
+    y:
+      null,
+
+    time:
+      state.game.clockSeconds
+
+  });
+
+
+  renderAll();
+
+}
+
+
+/* =========================================================
+   24. 일반 기록
+========================================================= */
+
+function addStat(
+  player,
+  stat,
+  amount,
+  label
+) {
+
+  const oldState =
+    cloneStateForUndo();
+
+
+  player.stats[stat] +=
+    amount;
+
+
+  pushAction({
+
+    type: "stat",
+
+    playerId:
+      player.id,
+
+    stat,
+
+    amount,
+
+    label,
+
+    team:
+      player.team
+
+  }, oldState);
+
+
+  renderAll();
+
+}
+
+
+/* =========================================================
+   25. 파울
+========================================================= */
+
+function addFoul(
+  player
+) {
+
+  const oldState =
+    cloneStateForUndo();
+
+
+  player.stats.pf += 1;
+
+
+  state.teams[
+    player.team
+  ].fouls += 1;
+
+
+  pushAction({
+
+    type: "foul",
+
+    playerId:
+      player.id,
+
+    team:
+      player.team
+
+  }, oldState);
+
+
+  renderAll();
+
+}
+
+
+/* =========================================================
+   26. 팀 점수
+========================================================= */
+
+function addTeamScore(
+  team,
+  points
+) {
+
+  state.teams[
+    team
+  ].score =
+    getTeamScore(team)
+    + points;
+
+}
+
+
+/* =========================================================
+   27. 팀 점수 계산
+========================================================= */
+
+function getTeamScore(
+  team
+) {
+
+  return state.teams[
+    team
+  ].players
+    .reduce(
+      (
+        total,
+        player
+      ) =>
+        total +
+        player.stats.pts,
+      0
+    );
+
+}
+
+
+/* =========================================================
+   28. +/- 처리
+========================================================= */
+
+function updatePlusMinus(
+  scoringTeam,
+  points
+) {
+
+  const otherTeam =
+    scoringTeam === "A"
+      ? "B"
+      : "A";
+
+
+  state.teams[
+    scoringTeam
+  ].players
+    .filter(
+      player =>
+        player.onCourt
+    )
+    .forEach(
+      player => {
+
+        player.stats.plusMinus +=
+          points;
+
+      }
+    );
+
+
+  state.teams[
+    otherTeam
+  ].players
+    .filter(
+      player =>
+        player.onCourt
+    )
+    .forEach(
+      player => {
+
+        player.stats.plusMinus -=
+          points;
+
+      }
+    );
+
+}
+
+
+/* =========================================================
+   29. 액션 저장
+========================================================= */
+
+function pushAction(
+  action,
+  oldState
+) {
+
+  state.actions.push({
+
+    ...action,
+
+    id:
+      cryptoRandomId(),
+
+    timestamp:
+      Date.now(),
+
+    oldState
+
+  });
+
+}
+
+
+/* =========================================================
+   30. Undo
+========================================================= */
+
+function undoLastAction() {
+
+  const action =
+    state.actions.pop();
+
+
+  if (!action) {
+
+    alert(
+      "취소할 기록이 없습니다."
+    );
+
+    return;
+
+  }
+
+
+  restoreFromSnapshot(
+    action.oldState
+  );
+
+
+  renderAll();
+
+}
+
+
+/* =========================================================
+   31. 스냅샷
+========================================================= */
+
+function cloneStateForUndo() {
+
+  return JSON.parse(
+    JSON.stringify({
+      teams:
+        state.teams,
+
+      shots:
+        state.shots
+    })
+  );
+
+}
+
+
+function restoreFromSnapshot(
+  snapshot
+) {
+
+  state.teams =
+    snapshot.teams;
+
+  state.shots =
+    snapshot.shots;
+
+}
+
+
+/* =========================================================
+   32. 타임아웃
+========================================================= */
+
+function useTimeout(
+  team
+) {
+
+  if (
+    state.teams[
+      team
+    ].timeouts <= 0
+  ) {
+
+    return;
+
+  }
+
+
+  state.teams[
+    team
+  ].timeouts -= 1;
+
+
+  state.running =
+    false;
+
+
+  renderAll();
+
+}
+
+
+/* =========================================================
+   33. 다음 구간
+========================================================= */
+
+function nextPeriod() {
+
+  state.game.period += 1;
+
+  state.game.clockSeconds =
+    state.game.minutes * 60;
+
+  resetShotClock();
+
+  pauseClock();
+
+  renderAll();
+
+}
+
+
+/* =========================================================
+   34. 경기 종료
+========================================================= */
+
+function endGame() {
+
+  pauseClock();
+
+
+  const scoreA =
+    getTeamScore("A");
+
+
+  const scoreB =
+    getTeamScore("B");
+
+
+  let winner =
+    "무승부";
+
+
+  if (
+    scoreA > scoreB
+  ) {
+
+    winner =
+      state.teams.A.name;
+
+  }
+
+  else if (
+    scoreB > scoreA
+  ) {
+
+    winner =
+      state.teams.B.name;
+
+  }
+
+
+  alert(
+    `경기 종료\n\n${state.teams.A.name} ${scoreA} : ${scoreB} ${state.teams.B.name}\n\n승리: ${winner}`
+  );
+
+}
+
+
+/* =========================================================
+   35. 경기 초기화
+========================================================= */
+
+function resetGame() {
+
+  if (
+    !confirm(
+      "현재 경기 기록을 초기화할까요?"
+    )
+  ) {
+
+    return;
+
+  }
+
+
+  state.teams.A.fouls = 0;
+  state.teams.B.fouls = 0;
+
+  state.teams.A.timeouts = 1;
+  state.teams.B.timeouts = 1;
+
+
+  [
+    "A",
+    "B"
+  ].forEach(
+    team => {
+
+      state.teams[
+        team
+      ].players
+        .forEach(
+          player => {
+
+            player.stats = {
+
+              min: 0,
+              pts: 0,
+              reb: 0,
+              ast: 0,
+              stl: 0,
+              blk: 0,
+              to: 0,
+              pf: 0,
+              fg: 0,
+              fga: 0,
+              ft: 0,
+              fta: 0,
+              fg2: 0,
+              fga2: 0,
+              fg3: 0,
+              fga3: 0,
+              off: 0,
+              def: 0,
+              plusMinus: 0
+
+            };
+
+
+            player.secondsPlayed =
+              0;
+
+          }
+        );
+
+    }
+  );
+
+
+  state.actions = [];
+
+  state.shots = [];
+
+
+  state.game.period = 1;
+
+  state.game.clockSeconds =
+    state.game.minutes * 60;
+
+  state.game.shotClock =
+    state.game.shotClockMax;
+
+
+  renderAll();
+
+}
+
+
+/* =========================================================
+   36. 게임 시계
+========================================================= */
+
+let internalTimer =
+  null;
+
+
+function startInternalClock() {
+
+  if (internalTimer)
+    clearInterval(
+      internalTimer
+    );
+
+
+  internalTimer =
+    setInterval(
+      () => {
+
+        if (
+          !state.game.running
+        ) {
+
+          return;
+
+        }
+
+
+        if (
+          state.game.clockSeconds >
+          0
+        ) {
+
+          state.game.clockSeconds -=
+            1;
+
+        }
+
+
+        if (
+          state.game.shotClock >
+          0
+        ) {
+
+          state.game.shotClock -=
+            1;
+
+        }
+
+
+        updatePlayingTime();
+
+        renderClock();
+
+      },
+      1000
+    );
+
+}
+
+
+function startClock() {
+
+  state.game.running =
+    true;
+
+  renderClock();
+
+}
+
+
+function pauseClock() {
+
+  state.game.running =
+    false;
+
+  renderClock();
+
+}
+
+
+function resetShotClock() {
+
+  state.game.shotClock =
+    state.game.shotClockMax;
+
+  renderClock();
+
+}
+
+
+/* =========================================================
+   37. 출전시간
+========================================================= */
+
+function updatePlayingTime() {
+
+  if (
+    !state.game.running
+  ) {
+
+    return;
+
+  }
+
+
+  [
+    "A",
+    "B"
+  ].forEach(
+    team => {
+
+      state.teams[
+        team
+      ].players
+        .filter(
+          player =>
+            player.onCourt
+        )
+        .forEach(
+          player => {
+
+            player.secondsPlayed +=
+              1;
+
+          }
+        );
+
+    }
+  );
+
+}
+
+
+/* =========================================================
+   38. 시계 표시
+========================================================= */
+
+function renderClock() {
+
+  const gameClock =
+    document.getElementById(
+      "gameClock"
+    );
+
+
+  const shotClock =
+    document.getElementById(
+      "shotClock"
+    );
+
+
+  const quarter =
+    document.getElementById(
+      "quarterLabel"
+    );
+
+
+  if (gameClock) {
+
+    gameClock.textContent =
+      formatClock(
+        state.game.clockSeconds
+      );
+
+  }
+
+
+  if (shotClock) {
+
+    shotClock.textContent =
+      state.game.shotClock;
+
+  }
+
+
+  if (quarter) {
+
+    quarter.textContent =
+      `${state.game.period}Q`;
+
+  }
+
+}
+
+
+/* =========================================================
+   39. 전체 렌더
+========================================================= */
+
+function renderAll() {
+
+  renderSetup();
+
+  renderLiveInfo();
+
+  renderScores();
+
+  renderClock();
+
+  renderOnCourt();
+
+  renderSelectedPlayer();
+
+  renderRecentLogs();
+
+  renderMVP();
+
+  renderLeaders();
+
+  renderComparison();
+
+  renderRecords();
+
+  renderPlayerSelectors();
+
+  renderShotChart();
+
+  renderShotSummary();
+
+  renderZoneAnalysis();
+
+  renderShotTrend();
+
+  renderVideoTags();
+
+  renderAnalysis();
+
+  renderReports();
+
+  renderLeague();
+
+}
+
+
+/* =========================================================
+   40. 라이브 정보
+========================================================= */
+
+function renderLiveInfo() {
+
+  setText(
+    "liveGameTitle",
+    state.game.title
+  );
+
+  setText(
+    "liveGameLocation",
+    state.game.location ||
+      "미입력"
+  );
+
+  setText(
+    "liveGameDate",
+    state.game.date ||
+      "미입력"
+  );
+
+  setText(
+    "liveGameMode",
+    state.mode === "3v3"
+      ? "3대3"
+      : "5대5"
+  );
+
+
+  setText(
+    "teamANameDisplay",
+    state.teams.A.name
+  );
+
+  setText(
+    "teamBNameDisplay",
+    state.teams.B.name
+  );
+
+  setText(
+    "scoreboardTeamA",
+    state.teams.A.name
+  );
+
+  setText(
+    "scoreboardTeamB",
+    state.teams.B.name
+  );
+
+
+  setText(
+    "teamAPlayerCount",
+    `선수 ${state.teams.A.players.length}명`
+  );
+
+  setText(
+    "teamBPlayerCount",
+    `선수 ${state.teams.B.players.length}명`
+  );
+
+}
+
+
+/* =========================================================
+   41. 점수 표시
+========================================================= */
+
+function renderScores() {
+
+  const scoreA =
+    getTeamScore("A");
+
+
+  const scoreB =
+    getTeamScore("B");
+
+
+  [
+    [
+      "teamAScore",
+      scoreA
+    ],
+    [
+      "scoreboardAValue",
+      scoreA
+    ],
+    [
+      "teamBScore",
+      scoreB
+    ],
+    [
+      "scoreboardBValue",
+      scoreB
+    ],
+    [
+      "teamAFouls",
+      state.teams.A.fouls
+    ],
+    [
+      "scoreboardAFouls",
+      state.teams.A.fouls
+    ],
+    [
+      "teamBFouls",
+      state.teams.B.fouls
+    ],
+    [
+      "scoreboardBFouls",
+      state.teams.B.fouls
+    ],
+    [
+      "teamATimeouts",
+      state.teams.A.timeouts
+    ],
+    [
+      "scoreboardATimeouts",
+      state.teams.A.timeouts
+    ],
+    [
+      "teamBTimeouts",
+      state.teams.B.timeouts
+    ],
+    [
+      "scoreboardBTimeouts",
+      state.teams.B.timeouts
+    ]
+
+  ].forEach(
+    ([id, value]) =>
+      setText(
+        id,
+        value
+      )
+  );
+
+}
+
+
+/* =========================================================
+   42. 모드 표시
+========================================================= */
+
+function updateModeLabel() {
+
+  setText(
+    "liveModeLabel",
+    state.mode === "3v3"
+      ? "3대3 모드"
+      : "5대5 모드"
+  );
+
+}
+
+
+/* =========================================================
+   43. 최근 기록
+========================================================= */
+
+function renderRecentLogs() {
+
+  const container =
+    document.getElementById(
+      "recentLogList"
+    );
+
+
+  if (!container)
+    return;
+
+
+  if (
+    state.actions.length === 0
+  ) {
+
     container.innerHTML = `
       <div class="empty-message">
         아직 기록이 없습니다.
@@ -2048,2017 +2740,1584 @@ function renderRecentLogs() {
     `;
 
     return;
+
   }
 
-  container.innerHTML = state.logs
-    .slice(0, 30)
-    .map(log => {
-      const playerText = log.playerName
-        ? `<b>${escapeHtml(log.playerName)}</b> · `
-        : "";
 
-      return `
-        <div class="recent-log-row">
-          <time>${escapeHtml(log.period)}</time>
+  container.innerHTML =
+    state.actions
+      .slice(-30)
+      .reverse()
+      .map(
+        action => {
 
-          <span>
-            ${playerText}${escapeHtml(log.text)}
-          </span>
+          const player =
+            findPlayer(
+              action.playerId
+            );
 
-          <strong>
-            ${escapeHtml(log.team)}
-          </strong>
-        </div>
-      `;
-    })
-    .join("");
+
+          return `
+
+            <div class="recent-log-row">
+
+              <time>
+                ${new Date(
+                  action.timestamp
+                ).toLocaleTimeString(
+                  "ko-KR",
+                  {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    second: "2-digit"
+                  }
+                )}
+              </time>
+
+              <strong>
+                ${
+                  player
+                    ? `#${player.number} ${escapeHTML(player.name)}`
+                    : "-"
+                }
+              </strong>
+
+              <span>
+                ${getActionLabel(
+                  action
+                )}
+              </span>
+
+            </div>
+
+          `;
+
+        }
+      )
+      .join("");
+
 }
 
-/* =========================
-   팀 비교
-========================= */
 
-function renderTeamComparison() {
-  const teamA = getTeamStats("A");
-  const teamB = getTeamStats("B");
+/* =========================================================
+   44. 액션 라벨
+========================================================= */
 
-  const rows = [
-    {
-      name: "Pts",
-      valueA: teamA.pts,
-      valueB: teamB.pts
-    },
-    {
-      name: "Reb",
-      valueA: teamA.reb,
-      valueB: teamB.reb
-    },
-    {
-      name: "Ast",
-      valueA: teamA.ast,
-      valueB: teamB.ast
-    },
-    {
-      name: "Stl",
-      valueA: teamA.stl,
-      valueB: teamB.stl
-    },
-    {
-      name: "Blk",
-      valueA: teamA.blk,
-      valueB: teamB.blk
-    },
-    {
-      name: "To",
-      valueA: teamA.to,
-      valueB: teamB.to
-    }
-  ];
+function getActionLabel(
+  action
+) {
 
-  rows.forEach(row => {
-    const total = Math.max(
-      row.valueA + row.valueB,
-      1
-    );
+  if (
+    action.type === "shot"
+  ) {
 
-    const widthA = (row.valueA / total) * 100;
-    const widthB = (row.valueB / total) * 100;
+    if (
+      action.made
+    ) {
 
-    const valueAElement = document.getElementById(
-      `compare${row.name}A`
-    );
+      return `+${action.points}`;
 
-    const valueBElement = document.getElementById(
-      `compare${row.name}B`
-    );
-
-    const barAElement = document.getElementById(
-      `compareBar${row.name}A`
-    );
-
-    const barBElement = document.getElementById(
-      `compareBar${row.name}B`
-    );
-
-    if (valueAElement) {
-      valueAElement.textContent = row.valueA;
     }
 
-    if (valueBElement) {
-      valueBElement.textContent = row.valueB;
-    }
+    return "슛 실패";
 
-    if (barAElement) {
-      barAElement.style.width = `${widthA}%`;
-    }
+  }
 
-    if (barBElement) {
-      barBElement.style.width = `${widthB}%`;
-    }
-  });
-}
 
-/* =========================
-   MVP·실시간 리더
-========================= */
-
-function calculateMvpScore(player) {
   return (
-    player.pts +
-    player.reb * 1.2 +
-    player.ast * 1.5 +
-    player.stl * 2 +
-    player.blk * 2 -
-    player.to * 1.3 -
-    player.pf * 0.5 +
-    player.plusMinus * 0.15
+    action.label ||
+    action.type ||
+    ""
   );
+
 }
 
-function renderLiveMvp() {
-  const container = document.getElementById("mvpCard");
 
-  if (!container || state.players.length === 0) {
+/* =========================================================
+   45. MVP
+========================================================= */
+
+function renderMVP() {
+
+  const players =
+    getAllPlayers();
+
+
+  if (
+    players.length === 0
+  )
     return;
-  }
 
-  const player = [...state.players].sort(
-    (a, b) =>
-      calculateMvpScore(b) -
-      calculateMvpScore(a)
-  )[0];
 
-  container.innerHTML = `
-    <div class="mvp-icon">🏀</div>
+  const ranked =
+    players
+      .map(
+        player => ({
+
+          player,
+
+          score:
+            player.stats.pts +
+            player.stats.reb * 1.2 +
+            player.stats.ast * 1.5 +
+            player.stats.stl * 2 +
+            player.stats.blk * 2 -
+            player.stats.to * 1.5
+
+        })
+      )
+      .sort(
+        (a, b) =>
+          b.score -
+          a.score
+      );
+
+
+  const top =
+    ranked[0];
+
+
+  if (!top) return;
+
+
+  const player =
+    top.player;
+
+
+  const card =
+    document.getElementById(
+      "mvpCard"
+    );
+
+
+  if (!card) return;
+
+
+  card.innerHTML = `
+
+    <div class="mvp-icon">
+      🏀
+    </div>
 
     <div class="mvp-info">
+
       <div class="mvp-team">
-        ${escapeHtml(getTeamName(player.team))}
+        ${
+          player.team === "A"
+            ? "TEAM A"
+            : "TEAM B"
+        }
       </div>
 
       <div class="mvp-name">
-        #${player.number} ${escapeHtml(player.name)}
+        #${player.number}
+        ${escapeHTML(
+          player.name
+        )}
       </div>
 
       <div class="mvp-stats">
-        PTS ${player.pts} · REB ${player.reb} · AST ${player.ast}
+        PTS ${player.stats.pts}
+        · REB ${player.stats.reb}
+        · AST ${player.stats.ast}
       </div>
+
     </div>
 
     <div class="mvp-score">
-      ${calculateMvpScore(player).toFixed(1)}
+      ${top.score.toFixed(1)}
     </div>
+
   `;
+
 }
 
-function findStatLeader(key) {
-  if (state.players.length === 0) {
-    return null;
-  }
 
-  return [...state.players].sort(
-    (a, b) => (b[key] || 0) - (a[key] || 0)
-  )[0];
-}
+/* =========================================================
+   46. 리더
+========================================================= */
 
-function renderLiveLeaders() {
-  const container = document.getElementById(
-    "liveLeaderCards"
-  );
+function renderLeaders() {
 
-  if (!container) {
+  const container =
+    document.getElementById(
+      "liveLeaderCards"
+    );
+
+
+  if (!container)
     return;
+
+
+  const players =
+    getAllPlayers();
+
+
+  if (
+    players.every(
+      p =>
+        p.stats.pts === 0 &&
+        p.stats.reb === 0 &&
+        p.stats.ast === 0 &&
+        p.stats.stl === 0 &&
+        p.stats.blk === 0
+    )
+  ) {
+
+    container.innerHTML = `
+      <div class="empty-message">
+        아직 기록이 없습니다.
+      </div>
+    `;
+
+    return;
+
   }
+
 
   const categories = [
-    {
-      label: "득점",
-      key: "pts"
-    },
-    {
-      label: "리바운드",
-      key: "reb"
-    },
-    {
-      label: "어시스트",
-      key: "ast"
-    },
-    {
-      label: "수비",
-      key: "defenseScore"
-    }
+
+    [
+      "득점",
+      "pts"
+    ],
+
+    [
+      "리바운드",
+      "reb"
+    ],
+
+    [
+      "어시스트",
+      "ast"
+    ],
+
+    [
+      "스틸",
+      "stl"
+    ],
+
+    [
+      "블록",
+      "blk"
+    ]
+
   ];
 
-  container.innerHTML = categories
-    .map(category => {
-      const leader = findStatLeader(category.key);
 
-      if (!leader) {
-        return "";
-      }
+  container.innerHTML =
+    categories
+      .map(
+        ([label, key]) => {
 
-      const value =
-        category.key === "defenseScore"
-          ? leader.defenseScore.toFixed(1)
-          : leader[category.key];
+          const top =
+            [...players]
+              .sort(
+                (
+                  a,
+                  b
+                ) =>
+                  b.stats[key] -
+                  a.stats[key]
+              )[0];
 
-      return `
-        <div class="live-leader-card">
-          <span>${category.label}</span>
 
-          <strong>
-            #${leader.number} ${escapeHtml(leader.name)}
-          </strong>
+          return `
 
-          <b>${value}</b>
-        </div>
-      `;
-    })
-    .join("");
+            <div class="live-leader-card">
+
+              <span>
+                ${label}
+              </span>
+
+              <strong>
+                ${
+                  top
+                    ? `#${top.number} ${escapeHTML(top.name)}`
+                    : "-"
+                }
+              </strong>
+
+              <b>
+                ${
+                  top
+                    ? top.stats[key]
+                    : 0
+                }
+              </b>
+
+            </div>
+
+          `;
+
+        }
+      )
+      .join("");
+
 }
 
-/* =========================
-   2부 렌더링 묶음
-========================= */
 
-function renderLivePartTwo() {
-  updatePlayerImpactScores();
+/* =========================================================
+   47. 팀 비교
+========================================================= */
 
-  renderLiveGameInfo();
-  renderTeamHeaders();
-  renderScoreboard();
-  renderSelectedPlayerHeader();
-  renderOnCourtPlayers();
-  renderRecentLogs();
-  renderTeamComparison();
-  renderLiveMvp();
-  renderLiveLeaders();
-}
+function renderComparison() {
 
-/* =========================
-   2부 이벤트 시작
-========================= */
+  const stats = [
 
-function initializeAppPartTwo() {
-  bindStatButtons();
-  bindClockButtons();
-  bindPeriodButtons();
-  bindTimeoutButtons();
-  bindHistoryButtons();
-  bindGameControlButtons();
+    [
+      "Pts",
+      "pts"
+    ],
 
-  renderLivePartTwo();
-}
+    [
+      "Reb",
+      "reb"
+    ],
 
-initializeAppPartTwo();
-/* =========================
-   선수 선택 옵션
-========================= */
+    [
+      "Ast",
+      "ast"
+    ],
 
-function renderPlayerSelectOptions() {
-  const selectIds = [
-    "playerDetailSelect",
-    "shotPlayerSelect",
-    "videoPlayerSelect",
-    "reportPlayerSelect"
+    [
+      "Stl",
+      "stl"
+    ],
+
+    [
+      "Blk",
+      "blk"
+    ],
+
+    [
+      "To",
+      "to"
+    ]
+
   ];
 
-  selectIds.forEach(selectId => {
-    const select = document.getElementById(selectId);
 
-    if (!select) {
-      return;
+  stats.forEach(
+    ([label, key]) => {
+
+      const a =
+        teamStat(
+          "A",
+          key
+        );
+
+
+      const b =
+        teamStat(
+          "B",
+          key
+        );
+
+
+      setText(
+        `compare${capitalize(label)}A`,
+        a
+      );
+
+      setText(
+        `compare${capitalize(label)}B`,
+        b
+      );
+
+
+      const total =
+        a + b;
+
+
+      const aWidth =
+        total
+          ? (a / total) * 100
+          : 50;
+
+
+      const bWidth =
+        total
+          ? (b / total) * 100
+          : 50;
+
+
+      const barA =
+        document.getElementById(
+          `compareBar${capitalize(label)}A`
+        );
+
+
+      const barB =
+        document.getElementById(
+          `compareBar${capitalize(label)}B`
+        );
+
+
+      if (barA)
+        barA.style.width =
+          `${aWidth}%`;
+
+
+      if (barB)
+        barB.style.width =
+          `${bWidth}%`;
+
     }
+  );
 
-    const previousValue = select.value;
-
-    select.innerHTML = `
-      <option value="">
-        선수를 선택해주세용
-      </option>
-    `;
-
-    state.players.forEach(player => {
-      const option = document.createElement("option");
-
-      option.value = player.id;
-      option.textContent =
-        `${player.team}팀 #${player.number} ${player.name}`;
-
-      select.appendChild(option);
-    });
-
-    if (
-      previousValue &&
-      state.players.some(player => player.id === previousValue)
-    ) {
-      select.value = previousValue;
-    }
-  });
 }
 
-/* =========================
-   기록표
-========================= */
 
-function bindRecordFilters() {
-  const teamFilter = document.getElementById(
-    "recordFilterTeam"
-  );
+/* =========================================================
+   48. 기록 페이지
+========================================================= */
 
-  const periodFilter = document.getElementById(
-    "recordFilterPeriod"
-  );
+function renderRecords() {
 
-  const playerDetailSelect = document.getElementById(
-    "playerDetailSelect"
-  );
-
-  if (teamFilter) {
-    teamFilter.addEventListener("change", renderStatsTable);
-  }
-
-  if (periodFilter) {
-    periodFilter.addEventListener("change", renderStatsTable);
-  }
-
-  if (playerDetailSelect) {
-    playerDetailSelect.addEventListener(
-      "change",
-      renderPlayerDetail
+  const body =
+    document.getElementById(
+      "statsTableBody"
     );
-  }
-}
 
-function updatePeriodFilterOptions() {
-  const filterIds = [
-    "recordFilterPeriod",
-    "shotPeriodFilter"
-  ];
 
-  const labels = getPeriodLabels();
-
-  filterIds.forEach(filterId => {
-    const select = document.getElementById(filterId);
-
-    if (!select) {
-      return;
-    }
-
-    const previousValue = select.value || "all";
-
-    select.innerHTML = `
-      <option value="all">전체 구간</option>
-    `;
-
-    labels.forEach(label => {
-      const option = document.createElement("option");
-
-      option.value = label;
-      option.textContent = label;
-
-      select.appendChild(option);
-    });
-
-    if (
-      previousValue === "all" ||
-      labels.includes(previousValue)
-    ) {
-      select.value = previousValue;
-    }
-  });
-}
-
-function getPlayerStatsForPeriod(player, periodFilter) {
-  if (periodFilter === "all") {
-    return {
-      courtSeconds: player.courtSeconds,
-      pts: player.pts,
-      reb: player.reb,
-      ast: player.ast,
-      stl: player.stl,
-      blk: player.blk,
-      to: player.to,
-      pf: player.pf,
-      fgm: player.fgm,
-      fga: player.fga,
-      plusMinus: player.plusMinus
-    };
-  }
-
-  const period =
-    player.periodStats?.[periodFilter] || {};
-
-  return {
-    courtSeconds: period.courtSeconds || 0,
-    pts: period.pts || 0,
-    reb: period.reb || 0,
-    ast: period.ast || 0,
-    stl: period.stl || 0,
-    blk: period.blk || 0,
-    to: period.to || 0,
-    pf: period.pf || 0,
-    fgm: period.fgm || 0,
-    fga: period.fga || 0,
-    plusMinus: period.plusMinus || 0
-  };
-}
-
-function renderStatsTable() {
-  const tbody = document.getElementById("statsTableBody");
-
-  if (!tbody) {
+  if (!body)
     return;
-  }
+
 
   const teamFilter =
-    document.getElementById("recordFilterTeam")?.value ||
-    "all";
+    value(
+      "recordFilterTeam"
+    ) || "all";
 
-  const periodFilter =
-    document.getElementById("recordFilterPeriod")?.value ||
-    "all";
 
-  const filteredPlayers = state.players.filter(player => {
-    return (
-      teamFilter === "all" ||
-      player.team === teamFilter
-    );
-  });
+  let players =
+    getAllPlayers();
 
-  if (filteredPlayers.length === 0) {
-    tbody.innerHTML = `
+
+  if (
+    teamFilter !== "all"
+  ) {
+
+    players =
+      players.filter(
+        p =>
+          p.team ===
+          teamFilter
+      );
+
+  }
+
+
+  if (
+    players.length === 0
+  ) {
+
+    body.innerHTML = `
       <tr>
-        <td colspan="16" class="empty-cell">
-          표시할 선수가 없습니다.
+        <td
+          colspan="16"
+          class="empty-cell"
+        >
+          아직 기록이 없습니다.
         </td>
       </tr>
     `;
 
     return;
+
   }
 
-  tbody.innerHTML = filteredPlayers
-    .map(player => {
-      const stats = getPlayerStatsForPeriod(
-        player,
-        periodFilter
+
+  body.innerHTML =
+    players
+      .map(
+        player => {
+
+          const s =
+            player.stats;
+
+
+          const fgPct =
+            s.fga
+              ? (
+                  s.fg /
+                  s.fga *
+                  100
+                ).toFixed(1)
+              : "0.0";
+
+
+          return `
+
+            <tr>
+
+              <td>
+                ${
+                  player.team === "A"
+                    ? "A"
+                    : "B"
+                }
+              </td>
+
+              <td>
+                ${player.number}
+              </td>
+
+              <td>
+                ${escapeHTML(
+                  player.name
+                )}
+              </td>
+
+              <td>
+                ${formatSeconds(
+                  player.secondsPlayed
+                )}
+              </td>
+
+              <td>
+                ${s.pts}
+              </td>
+
+              <td>
+                ${s.reb}
+              </td>
+
+              <td>
+                ${s.ast}
+              </td>
+
+              <td>
+                ${s.stl}
+              </td>
+
+              <td>
+                ${s.blk}
+              </td>
+
+              <td>
+                ${s.to}
+              </td>
+
+              <td>
+                ${s.pf}
+              </td>
+
+              <td>
+                ${s.fg}/${s.fga}
+              </td>
+
+              <td>
+                ${fgPct}%
+              </td>
+
+              <td>
+                ${s.plusMinus}
+              </td>
+
+              <td>
+                ${s.off}
+              </td>
+
+              <td>
+                ${s.def}
+              </td>
+
+            </tr>
+
+          `;
+
+        }
+      )
+      .join("");
+
+
+  renderTeamSummary();
+
+}
+
+
+/* =========================================================
+   49. 선수 선택 목록
+========================================================= */
+
+function renderPlayerSelectors() {
+
+  const selects = [
+
+    "playerDetailSelect",
+    "shotPlayerSelect",
+    "videoPlayerSelect",
+    "reportPlayerSelect"
+
+  ];
+
+
+  const players =
+    getAllPlayers();
+
+
+  selects.forEach(
+    id => {
+
+      const select =
+        document.getElementById(
+          id
+        );
+
+
+      if (!select)
+        return;
+
+
+      const previous =
+        select.value;
+
+
+      let first =
+        "선수를 선택해주세용";
+
+
+      if (
+        id === "reportPlayerSelect"
+      ) {
+
+        first =
+          "개인 리포트 선수 선택";
+
+      }
+
+
+      select.innerHTML =
+        `<option value="">
+          ${first}
+        </option>`;
+
+
+      players.forEach(
+        player => {
+
+          const option =
+            document.createElement(
+              "option"
+            );
+
+
+          option.value =
+            player.id;
+
+
+          option.textContent =
+            `#${player.number} ${player.name}`;
+
+
+          select.appendChild(
+            option
+          );
+
+        }
       );
 
-      const fieldGoalPercentage =
-        stats.fga === 0
-          ? 0
-          : Math.round((stats.fgm / stats.fga) * 100);
 
-      const offense =
-        periodFilter === "all"
-          ? player.offenseScore
-          : calculatePeriodOffenseScore(stats);
+      if (
+        previous &&
+        players.some(
+          p =>
+            p.id === previous
+        )
+      ) {
 
-      const defense =
-        periodFilter === "all"
-          ? player.defenseScore
-          : calculatePeriodDefenseScore(stats);
+        select.value =
+          previous;
 
-      return `
-        <tr>
-          <td>${player.team}</td>
-          <td>${player.number}</td>
-          <td>${escapeHtml(player.name)}</td>
-          <td>${formatTime(stats.courtSeconds)}</td>
-          <td>${stats.pts}</td>
-          <td>${stats.reb}</td>
-          <td>${stats.ast}</td>
-          <td>${stats.stl}</td>
-          <td>${stats.blk}</td>
-          <td>${stats.to}</td>
-          <td>${stats.pf}</td>
-          <td>${stats.fgm}/${stats.fga}</td>
-          <td>${fieldGoalPercentage}%</td>
-          <td>${formatSignedNumber(stats.plusMinus)}</td>
-          <td>${offense.toFixed(1)}</td>
-          <td>${defense.toFixed(1)}</td>
-        </tr>
-      `;
-    })
-    .join("");
-}
+      }
 
-function calculatePeriodOffenseScore(stats) {
-  const missedShots = Math.max(
-    stats.fga - stats.fgm,
-    0
+    }
   );
 
-  return (
-    stats.pts +
-    stats.ast * 1.5 +
-    stats.reb * 0.3 -
-    stats.to * 1.5 -
-    missedShots * 0.5
-  );
 }
 
-function calculatePeriodDefenseScore(stats) {
-  return (
-    stats.stl * 2.3 +
-    stats.blk * 2.2 +
-    stats.reb * 0.8 -
-    stats.pf * 0.6
-  );
-}
 
-/* =========================
-   팀 기록 요약
-========================= */
-
-function renderTeamSummaryCards() {
-  const container = document.getElementById(
-    "teamSummaryCards"
-  );
-
-  if (!container) {
-    return;
-  }
-
-  const teamA = getTeamStats("A");
-  const teamB = getTeamStats("B");
-
-  const teamAFg =
-    teamA.fga === 0
-      ? 0
-      : Math.round((teamA.fgm / teamA.fga) * 100);
-
-  const teamBFg =
-    teamB.fga === 0
-      ? 0
-      : Math.round((teamB.fgm / teamB.fga) * 100);
-
-  container.innerHTML = `
-    ${createSummaryCard(
-      `${state.teamAName} 득점`,
-      teamA.pts
-    )}
-
-    ${createSummaryCard(
-      `${state.teamBName} 득점`,
-      teamB.pts
-    )}
-
-    ${createSummaryCard(
-      `${state.teamAName} 야투율`,
-      `${teamAFg}%`
-    )}
-
-    ${createSummaryCard(
-      `${state.teamBName} 야투율`,
-      `${teamBFg}%`
-    )}
-
-    ${createSummaryCard(
-      `${state.teamAName} 리바운드`,
-      teamA.reb
-    )}
-
-    ${createSummaryCard(
-      `${state.teamBName} 리바운드`,
-      teamB.reb
-    )}
-
-    ${createSummaryCard(
-      `${state.teamAName} 어시스트`,
-      teamA.ast
-    )}
-
-    ${createSummaryCard(
-      `${state.teamBName} 어시스트`,
-      teamB.ast
-    )}
-  `;
-}
-
-function createSummaryCard(label, value) {
-  return `
-    <div class="summary-stat-card">
-      <span>${escapeHtml(label)}</span>
-      <strong>${value}</strong>
-    </div>
-  `;
-}
-
-/* =========================
-   선수 상세 기록
-========================= */
+/* =========================================================
+   50. 선수 상세
+========================================================= */
 
 function renderPlayerDetail() {
-  const card = document.getElementById(
-    "playerDetailCard"
-  );
 
-  if (!card) {
+  const id =
+    value(
+      "playerDetailSelect"
+    );
+
+
+  const container =
+    document.getElementById(
+      "playerDetailCard"
+    );
+
+
+  if (!container)
     return;
-  }
 
-  const playerId =
-    document.getElementById("playerDetailSelect")
-      ?.value || "";
 
-  const player = getPlayer(playerId);
+  const player =
+    findPlayer(id);
+
 
   if (!player) {
-    card.innerHTML = `
+
+    container.innerHTML = `
       <div class="empty-message">
         선수를 선택하면 상세 기록이 표시돼용.
       </div>
     `;
 
     return;
+
   }
 
-  const fieldGoalPercentage =
-    player.fga === 0
-      ? 0
-      : Math.round((player.fgm / player.fga) * 100);
 
-  card.innerHTML = `
-    <h3>
-      #${player.number} ${escapeHtml(player.name)}
-    </h3>
+  const s =
+    player.stats;
 
-    <p class="panel-help">
-      ${escapeHtml(getTeamName(player.team))}
-      · ${player.onCourt ? "출전 중" : "벤치"}
-    </p>
 
-    <div class="player-detail-grid">
-      ${createPlayerDetailStat("MIN", formatTime(player.courtSeconds))}
-      ${createPlayerDetailStat("PTS", player.pts)}
-      ${createPlayerDetailStat("REB", player.reb)}
-      ${createPlayerDetailStat("AST", player.ast)}
-      ${createPlayerDetailStat("STL", player.stl)}
-      ${createPlayerDetailStat("BLK", player.blk)}
-      ${createPlayerDetailStat("TO", player.to)}
-      ${createPlayerDetailStat("PF", player.pf)}
-      ${createPlayerDetailStat("FG", `${player.fgm}/${player.fga}`)}
-      ${createPlayerDetailStat("FG%", `${fieldGoalPercentage}%`)}
-      ${createPlayerDetailStat(
-        "+/-",
-        formatSignedNumber(player.plusMinus)
-      )}
-      ${createPlayerDetailStat(
-        "OFF",
-        player.offenseScore.toFixed(1)
-      )}
-      ${createPlayerDetailStat(
-        "DEF",
-        player.defenseScore.toFixed(1)
-      )}
-    </div>
-  `;
-}
+  const items = [
 
-function createPlayerDetailStat(label, value) {
-  return `
-    <div class="player-detail-stat">
-      <span>${label}</span>
-      <strong>${value}</strong>
-    </div>
-  `;
-}
+    [
+      "PTS",
+      s.pts
+    ],
 
-/* =========================
-   구간별 기록
-========================= */
+    [
+      "REB",
+      s.reb
+    ],
 
-function renderPeriodStatsList() {
-  const container = document.getElementById(
-    "periodStatsList"
-  );
+    [
+      "AST",
+      s.ast
+    ],
 
-  if (!container) {
-    return;
-  }
+    [
+      "STL",
+      s.stl
+    ],
 
-  updatePeriodSummaryRecord();
+    [
+      "BLK",
+      s.blk
+    ],
 
-  if (state.periodStats.length === 0) {
-    container.innerHTML = `
-      <div class="empty-message">
-        구간별 기록이 없습니다.
-      </div>
-    `;
+    [
+      "TO",
+      s.to
+    ],
 
-    return;
-  }
+    [
+      "FG%",
+      s.fga
+        ? `${(
+            s.fg /
+            s.fga *
+            100
+          ).toFixed(1)}%`
+        : "0.0%"
+    ],
 
-  container.innerHTML = state.periodStats
-    .map(record => {
-      return `
-        <div class="period-stat-row">
-          <strong>${escapeHtml(record.period)}</strong>
+    [
+      "+/-",
+      s.plusMinus
+    ]
 
-          <span>
-            ${escapeHtml(state.teamAName)}
-            ${record.teamAScore}
-            :
-            ${record.teamBScore}
-            ${escapeHtml(state.teamBName)}
-          </span>
+  ];
 
-          <span>
-            REB ${record.teamAReb}-${record.teamBReb}
-            · AST ${record.teamAAst}-${record.teamBAst}
-          </span>
-        </div>
-      `;
-    })
-    .join("");
-}
-
-/* =========================
-   교체 기록
-========================= */
-
-function renderSubstitutionLog() {
-  const container = document.getElementById(
-    "substitutionLogList"
-  );
-
-  if (!container) {
-    return;
-  }
-
-  if (state.substitutions.length === 0) {
-    container.innerHTML = `
-      <div class="empty-message">
-        선수 교체 기록이 없습니다.
-      </div>
-    `;
-
-    return;
-  }
-
-  container.innerHTML = state.substitutions
-    .map(substitution => {
-      let text = "";
-
-      if (substitution.type === "CHANGE") {
-        text =
-          `${escapeHtml(substitution.outPlayerName)} OUT · ` +
-          `${escapeHtml(substitution.inPlayerName)} IN`;
-      } else if (substitution.type === "OUT") {
-        text =
-          `${escapeHtml(substitution.outPlayerName)} OUT`;
-      } else {
-        text =
-          `${escapeHtml(substitution.inPlayerName)} IN`;
-      }
-
-      return `
-        <div class="substitution-log-row">
-          <strong>
-            ${escapeHtml(substitution.period)}
-          </strong>
-
-          <span>
-            ${escapeHtml(getTeamName(substitution.team))}
-            · ${text}
-          </span>
-
-          <span>
-            ${formatTime(substitution.gameSeconds)}
-          </span>
-        </div>
-      `;
-    })
-    .join("");
-}
-
-/* =========================
-   라인업 분석
-========================= */
-
-function renderLineupAnalysis() {
-  const container = document.getElementById(
-    "lineupAnalysisList"
-  );
-
-  if (!container) {
-    return;
-  }
-
-  const validLineups = state.lineupRecords
-    .filter(lineup => lineup.seconds > 0)
-    .sort((a, b) => {
-      if (b.plusMinus !== a.plusMinus) {
-        return b.plusMinus - a.plusMinus;
-      }
-
-      return b.seconds - a.seconds;
-    });
-
-  if (validLineups.length === 0) {
-    container.innerHTML = `
-      <div class="empty-message">
-        선수 교체와 득점 기록이 쌓이면 라인업 분석이 표시돼용.
-      </div>
-    `;
-
-    return;
-  }
-
-  container.innerHTML = validLineups
-    .map(lineup => {
-      return `
-        <div class="lineup-analysis-row">
-          <strong>
-            ${escapeHtml(getTeamName(lineup.team))}
-            · ${escapeHtml(lineup.playerNames)}
-          </strong>
-
-          <span>
-            시간
-            <b>${formatTime(lineup.seconds)}</b>
-          </span>
-
-          <span>
-            득점
-            <b>${lineup.pointsFor}</b>
-          </span>
-
-          <span>
-            실점
-            <b>${lineup.pointsAgainst}</b>
-          </span>
-
-          <span>
-            +/-
-            <b>${formatSignedNumber(lineup.plusMinus)}</b>
-          </span>
-        </div>
-      `;
-    })
-    .join("");
-}
-
-/* =========================
-   순위 공통 렌더링
-========================= */
-
-function renderRankingList(
-  containerId,
-  players,
-  valueGetter,
-  valueFormatter = value => value
-) {
-  const container = document.getElementById(containerId);
-
-  if (!container) {
-    return;
-  }
-
-  if (!players || players.length === 0) {
-    container.innerHTML = `
-      <div class="empty-message">
-        기록이 없습니다.
-      </div>
-    `;
-
-    return;
-  }
-
-  container.innerHTML = players
-    .map((player, index) => {
-      const value = valueGetter(player);
-
-      return `
-        <div class="ranking-row">
-          <div class="rank-number">
-            ${index + 1}
-          </div>
-
-          <div>
-            <strong>
-              #${player.number}
-              ${escapeHtml(player.name)}
-            </strong>
-
-            <span>
-              ${escapeHtml(getTeamName(player.team))}
-            </span>
-          </div>
-
-          <b>${valueFormatter(value)}</b>
-        </div>
-      `;
-    })
-    .join("");
-}
-
-/* =========================
-   플러스마이너스·기여도
-========================= */
-
-function renderImpactRankings() {
-  const plusMinusPlayers = [...state.players]
-    .sort((a, b) => b.plusMinus - a.plusMinus);
-
-  const offensePlayers = [...state.players]
-    .sort((a, b) => b.offenseScore - a.offenseScore);
-
-  const defensePlayers = [...state.players]
-    .sort((a, b) => b.defenseScore - a.defenseScore);
-
-  renderRankingList(
-    "plusMinusRanking",
-    plusMinusPlayers,
-    player => player.plusMinus,
-    value => formatSignedNumber(value)
-  );
-
-  renderRankingList(
-    "offenseRanking",
-    offensePlayers,
-    player => player.offenseScore,
-    value => Number(value).toFixed(1)
-  );
-
-  renderRankingList(
-    "defenseRanking",
-    defensePlayers,
-    player => player.defenseScore,
-    value => Number(value).toFixed(1)
-  );
-}
-
-/* =========================
-   팀 플레이 성향
-========================= */
-
-function renderTeamStyleAnalysis() {
-  const container = document.getElementById(
-    "teamStyleAnalysis"
-  );
-
-  if (!container) {
-    return;
-  }
-
-  const teamA = getTeamStats("A");
-  const teamB = getTeamStats("B");
 
   container.innerHTML = `
-    ${createTeamStyleCard("A", teamA)}
-    ${createTeamStyleCard("B", teamB)}
+
+    <div class="player-detail-grid">
+
+      ${
+        items
+          .map(
+            ([label, value]) => `
+
+              <div class="player-detail-stat">
+
+                <span>
+                  ${label}
+                </span>
+
+                <strong>
+                  ${value}
+                </strong>
+
+              </div>
+
+            `
+          )
+          .join("")
+      }
+
+    </div>
+
   `;
+
 }
 
-function createTeamStyleCard(team, stats) {
-  const totalActions = Math.max(
-    stats.pts +
-      stats.reb +
-      stats.ast +
-      stats.stl +
-      stats.blk +
-      stats.to,
-    1
-  );
 
-  const passingRate = Math.min(
-    100,
-    Math.round((stats.ast / totalActions) * 260)
-  );
+/* =========================================================
+   51. 팀 요약
+========================================================= */
 
-  const defenseRate = Math.min(
-    100,
-    Math.round(
-      ((stats.stl + stats.blk + stats.reb * 0.4) /
-        totalActions) *
-        180
-    )
-  );
+function renderTeamSummary() {
 
-  const controlRate = Math.max(
-    0,
-    Math.min(
-      100,
-      Math.round(
-        100 -
-          (stats.to / Math.max(stats.ast + stats.pts, 1)) *
-            100
+  const container =
+    document.getElementById(
+      "teamSummaryCards"
+    );
+
+
+  if (!container)
+    return;
+
+
+  container.innerHTML =
+    ["A", "B"]
+      .map(
+        team => `
+
+          <div class="summary-stat-card">
+
+            <span>
+              ${state.teams[team].name}
+            </span>
+
+            <strong>
+              ${getTeamScore(team)}
+            </strong>
+
+          </div>
+
+        `
       )
-    )
-  );
+      .join("");
 
-  const styleText = createTeamStyleText(
-    stats,
-    passingRate,
-    defenseRate,
-    controlRate
-  );
-
-  return `
-    <div class="team-style-card">
-      <h4>
-        ${escapeHtml(getTeamName(team))}
-      </h4>
-
-      <p>${styleText}</p>
-
-      ${createStyleMeter("패스 전개", passingRate)}
-      ${createStyleMeter("수비 활동량", defenseRate)}
-      ${createStyleMeter("볼 관리", controlRate)}
-    </div>
-  `;
 }
 
-function createTeamStyleText(
-  stats,
-  passingRate,
-  defenseRate,
-  controlRate
+
+/* =========================================================
+   52. 슛차트 모드
+========================================================= */
+
+let shotRecordMode =
+  null;
+
+
+function setShotMode(
+  mode
 ) {
-  const descriptions = [];
 
-  if (passingRate >= 60) {
-    descriptions.push("패스를 통한 공격 전개가 활발해용.");
-  } else {
-    descriptions.push("개인 공격 비중이 비교적 높은 편이에용.");
-  }
+  shotRecordMode =
+    mode;
 
-  if (defenseRate >= 60) {
-    descriptions.push("수비 활동량과 볼 압박이 좋아용.");
-  } else {
-    descriptions.push("수비 리바운드와 도움수비 보완이 필요해용.");
-  }
 
-  if (controlRate < 55 || stats.to >= 5) {
-    descriptions.push("턴오버 관리가 중요한 과제예용.");
-  } else {
-    descriptions.push("공격 과정에서 볼 관리가 안정적이에용.");
-  }
-
-  return descriptions.join(" ");
-}
-
-function createStyleMeter(label, value) {
-  return `
-    <p>${escapeHtml(label)} ${value}%</p>
-
-    <div class="style-meter">
-      <div style="width: ${value}%"></div>
-    </div>
-  `;
-}
-
-/* =========================
-   패스 네트워크
-========================= */
-
-function bindPassNetworkControls() {
-  const teamSelect = document.getElementById(
-    "passNetworkTeam"
+  alert(
+    mode === "made"
+      ? "코트에서 성공 위치를 눌러주세용."
+      : "코트에서 실패 위치를 눌러주세용."
   );
 
-  if (!teamSelect) {
+
+  const canvas =
+    document.getElementById(
+      "shotChartCanvas"
+    );
+
+
+  if (!canvas)
     return;
-  }
 
-  teamSelect.addEventListener("change", drawPassNetwork);
-}
 
-function drawPassNetwork() {
-  const canvas = document.getElementById(
-    "passNetworkCanvas"
-  );
+  canvas.onclick =
+    event => {
 
-  if (!canvas) {
-    return;
-  }
+      const playerId =
+        value(
+          "shotPlayerSelect"
+        );
 
-  const context = canvas.getContext("2d");
-  const width = canvas.width;
-  const height = canvas.height;
 
-  context.clearRect(0, 0, width, height);
+      if (!playerId) {
 
-  context.fillStyle = "#07121b";
-  context.fillRect(0, 0, width, height);
+        alert(
+          "먼저 선수를 선택해주세용."
+        );
 
-  const selectedTeam =
-    document.getElementById("passNetworkTeam")?.value ||
-    "A";
+        return;
 
-  const players = getTeamPlayers(selectedTeam);
+      }
 
-  if (players.length === 0) {
-    return;
-  }
 
-  const centerX = width / 2;
-  const centerY = height / 2;
-  const radius = Math.min(width, height) * 0.32;
+      const rect =
+        canvas.getBoundingClientRect();
 
-  const positions = new Map();
 
-  players.forEach((player, index) => {
-    const angle =
-      -Math.PI / 2 +
-      (Math.PI * 2 * index) / players.length;
+      const x =
+        (
+          event.clientX -
+          rect.left
+        ) /
+        rect.width;
 
-    positions.set(player.id, {
-      x: centerX + Math.cos(angle) * radius,
-      y: centerY + Math.sin(angle) * radius
-    });
-  });
 
-  const connections = state.passConnections.filter(
-    connection => connection.team === selectedTeam
-  );
+      const y =
+        (
+          event.clientY -
+          rect.top
+        ) /
+        rect.height;
 
-  connections.forEach(connection => {
-    const from = positions.get(connection.fromPlayerId);
-    const to = positions.get(connection.toPlayerId);
 
-    if (!from || !to) {
-      return;
-    }
+      state.shots.push({
 
-    context.strokeStyle = "rgba(246,186,63,0.75)";
-    context.lineWidth = Math.min(
-      12,
-      2 + connection.count * 1.6
-    );
+        id:
+          cryptoRandomId(),
 
-    context.beginPath();
-    context.moveTo(from.x, from.y);
-    context.lineTo(to.x, to.y);
-    context.stroke();
+        playerId,
 
-    const middleX = (from.x + to.x) / 2;
-    const middleY = (from.y + to.y) / 2;
+        team:
+          findPlayer(
+            playerId
+          )?.team,
 
-    context.fillStyle = "#f6ba3f";
-    context.font = "bold 18px sans-serif";
-    context.textAlign = "center";
-    context.fillText(
-      String(connection.count),
-      middleX,
-      middleY
-    );
-  });
+        type:
+          shotRecordMode === "made"
+            ? "SHOT"
+            : "MISS",
 
-  players.forEach(player => {
-    const position = positions.get(player.id);
+        made:
+          shotRecordMode ===
+          "made",
 
-    if (!position) {
-      return;
-    }
+        points:
+          0,
 
-    context.beginPath();
-    context.arc(
-      position.x,
-      position.y,
-      42,
-      0,
-      Math.PI * 2
-    );
+        period:
+          state.game.period,
 
-    context.fillStyle =
-      selectedTeam === "A"
-        ? "#2f93ff"
-        : "#ff4c55";
+        x,
 
-    context.fill();
+        y,
 
-    context.strokeStyle = "#ffffff";
-    context.lineWidth = 3;
-    context.stroke();
+        time:
+          state.game.clockSeconds
 
-    context.fillStyle = "#ffffff";
-    context.textAlign = "center";
+      });
 
-    context.font = "bold 19px sans-serif";
-    context.fillText(
-      `#${player.number}`,
-      position.x,
-      position.y - 3
-    );
 
-    context.font = "12px sans-serif";
+      renderShotChart();
 
-    const shortName =
-      player.name.length > 7
-        ? `${player.name.slice(0, 7)}…`
-        : player.name;
-
-    context.fillText(
-      shortName,
-      position.x,
-      position.y + 18
-    );
-  });
-}
-
-/* =========================
-   3부 렌더링 묶음
-========================= */
-
-function renderRecordAndAnalysisPartThree() {
-  updatePlayerImpactScores();
-
-  renderPlayerSelectOptions();
-  updatePeriodFilterOptions();
-
-  renderStatsTable();
-  renderTeamSummaryCards();
-  renderPlayerDetail();
-
-  renderPeriodStatsList();
-  renderSubstitutionLog();
-
-  renderLineupAnalysis();
-  renderImpactRankings();
-  renderTeamStyleAnalysis();
-
-  drawPassNetwork();
-}
-
-/* =========================
-   3부 실행
-========================= */
-
-function initializeAppPartThree() {
-  bindRecordFilters();
-  bindPassNetworkControls();
-
-  renderRecordAndAnalysisPartThree();
-}
-
-initializeAppPartThree();
-/* =========================
-   슛차트 기본 설정
-========================= */
-
-const shotChartCanvas = document.getElementById(
-  "shotChartCanvas"
-);
-
-const miniCourtCanvas = document.getElementById(
-  "miniCourtCanvas"
-);
-
-function bindShotChartButtons() {
-  const madeButton = document.getElementById(
-    "recordMadeShotBtn"
-  );
-
-  const missButton = document.getElementById(
-    "recordMissShotBtn"
-  );
-
-  const heatmapButton = document.getElementById(
-    "toggleHeatmapBtn"
-  );
-
-  const clearButton = document.getElementById(
-    "clearShotChartBtn"
-  );
-
-  const playerSelect = document.getElementById(
-    "shotPlayerSelect"
-  );
-
-  const viewModeSelect = document.getElementById(
-    "shotViewMode"
-  );
-
-  const periodFilter = document.getElementById(
-    "shotPeriodFilter"
-  );
-
-  if (madeButton) {
-    madeButton.addEventListener("click", () => {
-      state.shotMode = "made";
-
-      alert("코트에서 슛 성공 위치를 눌러주세용.");
-    });
-  }
-
-  if (missButton) {
-    missButton.addEventListener("click", () => {
-      state.shotMode = "miss";
-
-      alert("코트에서 슛 실패 위치를 눌러주세용.");
-    });
-  }
-
-  if (heatmapButton) {
-    heatmapButton.addEventListener("click", () => {
-      state.heatmap = !state.heatmap;
-
-      heatmapButton.textContent = state.heatmap
-        ? "히트맵 끄기"
-        : "히트맵 켜기";
-
-      saveState();
-      drawAllCourts();
-    });
-  }
-
-  if (clearButton) {
-    clearButton.addEventListener("click", clearSelectedShots);
-  }
-
-  if (playerSelect) {
-    playerSelect.addEventListener("change", () => {
-      drawAllCourts();
       renderShotSummary();
-      renderZoneAnalysis();
-      renderShotTrend();
-    });
-  }
 
-  if (viewModeSelect) {
-    viewModeSelect.addEventListener("change", () => {
-      drawAllCourts();
-      renderShotSummary();
       renderZoneAnalysis();
-      renderShotTrend();
-    });
-  }
 
-  if (periodFilter) {
-    periodFilter.addEventListener("change", () => {
-      drawAllCourts();
-      renderShotSummary();
-      renderZoneAnalysis();
       renderShotTrend();
-    });
-  }
 
-  if (shotChartCanvas) {
-    shotChartCanvas.addEventListener(
-      "click",
-      handleShotChartClick
-    );
-  }
+    };
+
 }
 
-/* =========================
-   슛 기록
-========================= */
 
-function handleShotChartClick(event) {
-  if (!state.shotMode) {
-    alert("먼저 성공 또는 실패 버튼을 눌러주세용.");
+/* =========================================================
+   53. 슛차트 렌더
+========================================================= */
+
+function renderShotChart() {
+
+  const canvas =
+    document.getElementById(
+      "shotChartCanvas"
+    );
+
+
+  if (!canvas)
     return;
-  }
 
-  const selectedPlayerId =
-    document.getElementById("shotPlayerSelect")?.value ||
-    state.selectedPlayerId;
 
-  const player = getPlayer(selectedPlayerId);
-
-  if (!player) {
-    alert("슛을 기록할 선수를 선택해주세용.");
-    return;
-  }
-
-  const rectangle =
-    shotChartCanvas.getBoundingClientRect();
-
-  const x =
-    ((event.clientX - rectangle.left) /
-      rectangle.width) *
-    100;
-
-  const y =
-    ((event.clientY - rectangle.top) /
-      rectangle.height) *
-    100;
-
-  const zone = getShotZone(x, y);
-  const shotType = getShotPointValue(x, y);
-
-  pushHistory();
-
-  const shot = {
-    id: createId("shot"),
-    playerId: player.id,
-    playerName: player.name,
-    team: player.team,
-
-    x,
-    y,
-
-    made: state.shotMode === "made",
-    pointValue: shotType,
-    zone,
-
-    period: getPeriodKey(),
-    gameSeconds: state.gameSeconds,
-    createdAt: Date.now()
-  };
-
-  state.shots.push(shot);
-
-  if (shot.made) {
-    player.fgm += 1;
-    player.fga += 1;
-    player.pts += shot.pointValue;
-
-    addPlayerPeriodStat(player, "fgm", 1);
-    addPlayerPeriodStat(player, "fga", 1);
-    addPlayerPeriodStat(
-      player,
-      "pts",
-      shot.pointValue
+  const ctx =
+    canvas.getContext(
+      "2d"
     );
 
-    applyPlayerPlusMinus(
-      player.team,
-      shot.pointValue
-    );
 
-    applyLineupScoreChange(
-      player.team,
-      shot.pointValue
-    );
-
-    state.lastScorerId = player.id;
-
-    addLog({
-      player,
-      text:
-        `${shot.pointValue}점슛 성공 · ${zone}`,
-      category: "슛차트"
-    });
-  } else {
-    player.fga += 1;
-    addPlayerPeriodStat(player, "fga", 1);
-
-    addLog({
-      player,
-      text: `슛 실패 · ${zone}`,
-      category: "슛차트"
-    });
-  }
-
-  state.shotMode = null;
-
-  updatePeriodSummaryRecord();
-  updatePlayerImpactScores();
-
-  saveState();
-  renderAll();
-}
-
-/* =========================
-   슛 거리·구역 계산
-========================= */
-
-function getShotPointValue(x, y) {
-  const basketX = 50;
-  const basketY = 8;
-
-  const distance = Math.sqrt(
-    Math.pow(x - basketX, 2) +
-    Math.pow(y - basketY, 2)
+  drawCourt(
+    canvas,
+    ctx
   );
 
-  const cornerThree =
-    y < 38 && (x < 15 || x > 85);
-
-  if (cornerThree || distance > 42) {
-    return 3;
-  }
-
-  return 2;
-}
-
-function getShotZone(x, y) {
-  const basketX = 50;
-  const basketY = 8;
-
-  const distance = Math.sqrt(
-    Math.pow(x - basketX, 2) +
-    Math.pow(y - basketY, 2)
-  );
-
-  if (distance <= 14) {
-    return "골밑";
-  }
-
-  if (y < 40 && x < 20) {
-    return "왼쪽 코너 3점";
-  }
-
-  if (y < 40 && x > 80) {
-    return "오른쪽 코너 3점";
-  }
-
-  if (distance > 42) {
-    if (x < 38) {
-      return "왼쪽 외곽";
-    }
-
-    if (x > 62) {
-      return "오른쪽 외곽";
-    }
-
-    return "정면 외곽";
-  }
-
-  if (x < 33) {
-    return "왼쪽 미드레인지";
-  }
-
-  if (x > 67) {
-    return "오른쪽 미드레인지";
-  }
-
-  return "정면 미드레인지";
-}
-
-/* =========================
-   슛 필터
-========================= */
-
-function getFilteredShots() {
-  const viewMode =
-    document.getElementById("shotViewMode")?.value ||
-    "player";
 
   const playerId =
-    document.getElementById("shotPlayerSelect")?.value ||
-    "";
-
-  const period =
-    document.getElementById("shotPeriodFilter")?.value ||
-    "all";
-
-  let shots = [...state.shots];
-
-  if (viewMode === "player") {
-    shots = shots.filter(
-      shot => shot.playerId === playerId
+    value(
+      "shotPlayerSelect"
     );
-  }
 
-  if (viewMode === "teamA") {
-    shots = shots.filter(
-      shot => shot.team === "A"
-    );
-  }
 
-  if (viewMode === "teamB") {
-    shots = shots.filter(
-      shot => shot.team === "B"
-    );
-  }
+  const view =
+    value(
+      "shotViewMode"
+    ) || "player";
 
-  if (period !== "all") {
-    shots = shots.filter(
-      shot => shot.period === period
-    );
-  }
 
-  return shots;
-}
-
-function clearSelectedShots() {
-  const viewMode =
-    document.getElementById("shotViewMode")?.value ||
-    "player";
-
-  const playerId =
-    document.getElementById("shotPlayerSelect")?.value ||
-    "";
-
-  if (viewMode === "player" && !playerId) {
-    alert("초기화할 선수를 선택해주세용.");
-    return;
-  }
-
-  const confirmed = confirm(
-    "현재 선택된 슛 기록을 삭제할까용?"
-  );
-
-  if (!confirmed) {
-    return;
-  }
-
-  if (viewMode === "player") {
-    state.shots = state.shots.filter(
-      shot => shot.playerId !== playerId
-    );
-  } else if (viewMode === "teamA") {
-    state.shots = state.shots.filter(
-      shot => shot.team !== "A"
-    );
-  } else if (viewMode === "teamB") {
-    state.shots = state.shots.filter(
-      shot => shot.team !== "B"
-    );
-  } else {
-    state.shots = [];
-  }
-
-  saveState();
-  renderAll();
-}
-
-/* =========================
-   코트 그리기
-========================= */
-
-function drawCourt(canvas, shots, options = {}) {
-  if (!canvas) {
-    return;
-  }
-
-  const context = canvas.getContext("2d");
-  const width = canvas.width;
-  const height = canvas.height;
-
-  context.clearRect(0, 0, width, height);
-
-  context.fillStyle = "#07121b";
-  context.fillRect(0, 0, width, height);
-
-  context.strokeStyle = "#71889b";
-  context.lineWidth = Math.max(2, width * 0.004);
-
-  context.strokeRect(
-    5,
-    5,
-    width - 10,
-    height - 10
-  );
-
-  const basketX = width / 2;
-  const basketY = height * 0.08;
-
-  context.beginPath();
-  context.arc(
-    basketX,
-    basketY,
-    width * 0.025,
-    0,
-    Math.PI * 2
-  );
-  context.stroke();
-
-  context.beginPath();
-  context.moveTo(
-    width * 0.46,
-    basketY - 5
-  );
-  context.lineTo(
-    width * 0.54,
-    basketY - 5
-  );
-  context.stroke();
-
-  context.strokeRect(
-    width * 0.34,
-    5,
-    width * 0.32,
-    height * 0.37
-  );
-
-  context.beginPath();
-  context.arc(
-    width / 2,
-    height * 0.37,
-    width * 0.1,
-    0,
-    Math.PI * 2
-  );
-  context.stroke();
-
-  context.beginPath();
-  context.arc(
-    basketX,
-    basketY,
-    width * 0.43,
-    0,
-    Math.PI,
-    false
-  );
-  context.stroke();
-
-  context.beginPath();
-  context.moveTo(width * 0.07, 5);
-  context.lineTo(width * 0.07, height * 0.35);
-
-  context.moveTo(width * 0.93, 5);
-  context.lineTo(width * 0.93, height * 0.35);
-  context.stroke();
-
-  context.beginPath();
-  context.arc(
-    width / 2,
-    height,
-    width * 0.12,
-    Math.PI,
-    0
-  );
-  context.stroke();
-
-  if (options.heatmap) {
-    drawShotHeatmap(context, canvas, shots);
-  }
-
-  drawShotMarkers(context, canvas, shots);
-}
-
-function drawShotHeatmap(context, canvas, shots) {
-  shots.forEach(shot => {
-    const x = (shot.x / 100) * canvas.width;
-    const y = (shot.y / 100) * canvas.height;
-
-    const radius =
-      Math.max(canvas.width, canvas.height) * 0.05;
-
-    const gradient =
-      context.createRadialGradient(
-        x,
-        y,
-        2,
-        x,
-        y,
-        radius
+  let shots =
+    state.shots
+      .filter(
+        shot =>
+          shot.x !== null &&
+          shot.y !== null
       );
 
-    if (shot.made) {
-      gradient.addColorStop(
-        0,
-        "rgba(47,147,255,0.48)"
+
+  if (
+    view === "player" &&
+    playerId
+  ) {
+
+    shots =
+      shots.filter(
+        shot =>
+          shot.playerId ===
+          playerId
       );
-    } else {
-      gradient.addColorStop(
-        0,
-        "rgba(255,76,85,0.45)"
+
+  }
+
+  else if (
+    view === "teamA"
+  ) {
+
+    shots =
+      shots.filter(
+        shot =>
+          shot.team === "A"
       );
-    }
 
-    gradient.addColorStop(
-      1,
-      "rgba(0,0,0,0)"
-    );
+  }
 
-    context.fillStyle = gradient;
+  else if (
+    view === "teamB"
+  ) {
 
-    context.beginPath();
-    context.arc(
-      x,
-      y,
-      radius,
-      0,
-      Math.PI * 2
-    );
-    context.fill();
-  });
-}
+    shots =
+      shots.filter(
+        shot =>
+          shot.team === "B"
+      );
 
-function drawShotMarkers(context, canvas, shots) {
-  const markerSize =
-    Math.max(6, canvas.width * 0.011);
+  }
 
-  shots.forEach(shot => {
-    const x = (shot.x / 100) * canvas.width;
-    const y = (shot.y / 100) * canvas.height;
 
-    context.lineWidth =
-      Math.max(2, canvas.width * 0.004);
+  shots.forEach(
+    shot => {
 
-    if (shot.made) {
-      context.strokeStyle =
-        shot.team === "A"
-          ? "#2f93ff"
-          : "#f6ba3f";
+      const x =
+        shot.x *
+        canvas.width;
 
-      context.beginPath();
-      context.arc(
+
+      const y =
+        shot.y *
+        canvas.height;
+
+
+      ctx.beginPath();
+
+      ctx.arc(
         x,
         y,
-        markerSize,
+        8,
         0,
         Math.PI * 2
       );
-      context.stroke();
-    } else {
-      context.strokeStyle = "#ff4c55";
 
-      context.beginPath();
-      context.moveTo(
-        x - markerSize,
-        y - markerSize
-      );
 
-      context.lineTo(
-        x + markerSize,
-        y + markerSize
-      );
+      ctx.fillStyle =
+        shot.made
+          ? "#2f93ff"
+          : "#ff4c55";
 
-      context.moveTo(
-        x + markerSize,
-        y - markerSize
-      );
 
-      context.lineTo(
-        x - markerSize,
-        y + markerSize
-      );
+      ctx.fill();
 
-      context.stroke();
-    }
-  });
-}
 
-function drawAllCourts() {
-  const filteredShots = getFilteredShots();
+      if (!shot.made) {
 
-  drawCourt(
-    shotChartCanvas,
-    filteredShots,
-    {
-      heatmap: state.heatmap
-    }
-  );
+        ctx.strokeStyle =
+          "#ffffff";
 
-  drawCourt(
-    miniCourtCanvas,
-    state.shots,
-    {
-      heatmap: false
-    }
-  );
-}
+        ctx.lineWidth =
+          2;
 
-/* =========================
-   슛 요약
-========================= */
+        ctx.beginPath();
 
-function renderShotSummary() {
-  const container = document.getElementById(
-    "shotSummaryCard"
-  );
-
-  if (!container) {
-    return;
-  }
-
-  const shots = getFilteredShots();
-
-  const madeShots = shots.filter(
-    shot => shot.made
-  ).length;
-
-  const attempts = shots.length;
-
-  const percentage =
-    attempts === 0
-      ? 0
-      : Math.round(
-          (madeShots / attempts) * 100
+        ctx.moveTo(
+          x - 5,
+          y - 5
         );
 
-  const twoPointShots = shots.filter(
-    shot => shot.pointValue === 2
+        ctx.lineTo(
+          x + 5,
+          y + 5
+        );
+
+        ctx.moveTo(
+          x + 5,
+          y - 5
+        );
+
+        ctx.lineTo(
+          x - 5,
+          y + 5
+        );
+
+        ctx.stroke();
+
+      }
+
+    }
   );
 
-  const threePointShots = shots.filter(
-    shot => shot.pointValue === 3
-  );
-
-  const twoMade = twoPointShots.filter(
-    shot => shot.made
-  ).length;
-
-  const threeMade = threePointShots.filter(
-    shot => shot.made
-  ).length;
-
-  container.innerHTML = `
-    ${createShotSummaryStat(
-      "전체 성공률",
-      `${percentage}%`
-    )}
-
-    ${createShotSummaryStat(
-      "성공 / 시도",
-      `${madeShots} / ${attempts}`
-    )}
-
-    ${createShotSummaryStat(
-      "2점슛",
-      `${twoMade} / ${twoPointShots.length}`
-    )}
-
-    ${createShotSummaryStat(
-      "3점슛",
-      `${threeMade} / ${threePointShots.length}`
-    )}
-  `;
 }
 
-function createShotSummaryStat(label, value) {
-  return `
-    <div class="shot-summary-stat">
-      <span>${escapeHtml(label)}</span>
-      <strong>${value}</strong>
-    </div>
-  `;
-}
 
-/* =========================
-   구역별 성공률
-========================= */
+/* =========================================================
+   54. 코트 그리기
+========================================================= */
 
-function renderZoneAnalysis() {
-  const container = document.getElementById(
-    "zoneAnalysisCards"
+function drawCourt(
+  canvas,
+  ctx
+) {
+
+  ctx.clearRect(
+    0,
+    0,
+    canvas.width,
+    canvas.height
   );
 
-  if (!container) {
+
+  ctx.fillStyle =
+    "#07121b";
+
+  ctx.fillRect(
+    0,
+    0,
+    canvas.width,
+    canvas.height
+  );
+
+
+  ctx.strokeStyle =
+    "#71808c";
+
+  ctx.lineWidth =
+    3;
+
+
+  const w =
+    canvas.width;
+
+
+  const h =
+    canvas.height;
+
+
+  ctx.strokeRect(
+    20,
+    20,
+    w - 40,
+    h - 40
+  );
+
+
+  ctx.beginPath();
+
+  ctx.arc(
+    w / 2,
+    h / 2,
+    75,
+    0,
+    Math.PI * 2
+  );
+
+  ctx.stroke();
+
+
+  ctx.beginPath();
+
+  ctx.moveTo(
+    w / 2,
+    20
+  );
+
+  ctx.lineTo(
+    w / 2,
+    h - 20
+  );
+
+  ctx.stroke();
+
+
+  /* 페인트 */
+
+  ctx.strokeRect(
+    w * 0.32,
+    20,
+    w * 0.36,
+    h * 0.29
+  );
+
+
+  /* 림 */
+
+  ctx.beginPath();
+
+  ctx.arc(
+    w / 2,
+    h * 0.16,
+    12,
+    0,
+    Math.PI * 2
+  );
+
+  ctx.stroke();
+
+}
+
+
+/* =========================================================
+   55. 미니 슛차트
+========================================================= */
+
+function renderMiniCourt() {
+
+  const canvas =
+    document.getElementById(
+      "miniCourtCanvas"
+    );
+
+
+  if (!canvas)
     return;
-  }
 
-  const shots = getFilteredShots();
 
-  if (shots.length === 0) {
-    container.innerHTML = `
-      <div class="empty-message">
-        슛 위치를 기록하면 구역별 분석이 표시돼용.
-      </div>
-    `;
+  const ctx =
+    canvas.getContext(
+      "2d"
+    );
 
+
+  drawCourt(
+    canvas,
+    ctx
+  );
+
+
+  state.shots
+    .filter(
+      shot =>
+        shot.x !== null &&
+        shot.y !== null
+    )
+    .forEach(
+      shot => {
+
+        ctx.beginPath();
+
+        ctx.arc(
+          shot.x *
+            canvas.width,
+          shot.y *
+            canvas.height,
+          5,
+          0,
+          Math.PI * 2
+        );
+
+
+        ctx.fillStyle =
+          shot.made
+            ? "#2f93ff"
+            : "#ff4c55";
+
+
+        ctx.fill();
+
+      }
+    );
+
+}
+
+
+/* =========================================================
+   56. 슛 요약
+========================================================= */
+
+function renderShotSummary() {
+
+  const container =
+    document.getElementById(
+      "shotSummaryCard"
+    );
+
+
+  if (!container)
     return;
-  }
 
-  const zones = {};
 
-  shots.forEach(shot => {
-    if (!zones[shot.zone]) {
-      zones[shot.zone] = {
-        attempts: 0,
-        made: 0
-      };
-    }
+  const playerId =
+    value(
+      "shotPlayerSelect"
+    );
 
-    zones[shot.zone].attempts += 1;
 
-    if (shot.made) {
-      zones[shot.zone].made += 1;
-    }
-  });
+  let shots =
+    state.shots;
 
-  container.innerHTML = Object.entries(zones)
-    .sort((a, b) => {
-      return b[1].attempts - a[1].attempts;
-    })
-    .map(([zoneName, values]) => {
-      const percentage = Math.round(
-        (values.made /
-          Math.max(values.attempts, 1)) *
-          100
+
+  if (playerId) {
+
+    shots =
+      shots.filter(
+        shot =>
+          shot.playerId ===
+          playerId
       );
 
-      return `
-        <div class="zone-card">
-          <span>${escapeHtml(zoneName)}</span>
-
-          <strong>${percentage}%</strong>
-
-          <small>
-            ${values.made} / ${values.attempts}
-          </small>
-        </div>
-      `;
-    })
-    .join("");
-}
-
-/* =========================
-   구간별 슛 추세
-========================= */
-
-function renderShotTrend() {
-  const container = document.getElementById(
-    "shotTrendList"
-  );
-
-  if (!container) {
-    return;
   }
 
-  const shots = getFilteredShots();
 
-  if (shots.length === 0) {
+  const made =
+    shots.filter(
+      shot =>
+        shot.made
+    ).length;
+
+
+  const attempted =
+    shots.length;
+
+
+  const pct =
+    attempted
+      ? (
+          made /
+          attempted *
+          100
+        ).toFixed(1)
+      : "0.0";
+
+
+  container.innerHTML = `
+
+    <div class="shot-summary-stat">
+
+      <span>
+        성공
+      </span>
+
+      <strong>
+        ${made}
+      </strong>
+
+    </div>
+
+    <div class="shot-summary-stat">
+
+      <span>
+        시도
+      </span>
+
+      <strong>
+        ${attempted}
+      </strong>
+
+    </div>
+
+    <div class="shot-summary-stat">
+
+      <span>
+        성공률
+      </span>
+
+      <strong>
+        ${pct}%
+      </strong>
+
+    </div>
+
+  `;
+
+
+  renderMiniCourt();
+
+}
+
+
+/* =========================================================
+   57. 구역 분석
+========================================================= */
+
+function renderZoneAnalysis() {
+
+  const container =
+    document.getElementById(
+      "zoneAnalysisCards"
+    );
+
+
+  if (!container)
+    return;
+
+
+  const zones = {
+
+    left:
+      {
+        name: "좌측",
+        shots: []
+      },
+
+    center:
+      {
+        name: "중앙",
+        shots: []
+      },
+
+    right:
+      {
+        name: "우측",
+        shots: []
+      }
+
+  };
+
+
+  state.shots
+    .filter(
+      shot =>
+        shot.x !== null
+    )
+    .forEach(
+      shot => {
+
+        if (
+          shot.x < 0.35
+        ) {
+
+          zones.left.shots
+            .push(shot);
+
+        }
+
+        else if (
+          shot.x > 0.65
+        ) {
+
+          zones.right.shots
+            .push(shot);
+
+        }
+
+        else {
+
+          zones.center.shots
+            .push(shot);
+
+        }
+
+      }
+    );
+
+
+  container.innerHTML =
+    Object.values(
+      zones
+    )
+      .map(
+        zone => {
+
+          const made =
+            zone.shots
+              .filter(
+                s =>
+                  s.made
+              )
+              .length;
+
+
+          const total =
+            zone.shots.length;
+
+
+          const pct =
+            total
+              ? (
+                  made /
+                  total *
+                  100
+                ).toFixed(1)
+              : "0.0";
+
+
+          return `
+
+            <div class="zone-card">
+
+              <span>
+                ${zone.name}
+              </span>
+
+              <strong>
+                ${pct}%
+              </strong>
+
+              <small>
+                ${made}/${total} 성공
+              </small>
+
+            </div>
+
+          `;
+
+        }
+      )
+      .join("");
+
+}
+
+
+/* =========================================================
+   58. 슛 트렌드
+========================================================= */
+
+function renderShotTrend() {
+
+  const container =
+    document.getElementById(
+      "shotTrendList"
+    );
+
+
+  if (!container)
+    return;
+
+
+  if (
+    state.shots.length === 0
+  ) {
+
     container.innerHTML = `
       <div class="empty-message">
         슛 기록이 없습니다.
@@ -4066,429 +4325,421 @@ function renderShotTrend() {
     `;
 
     return;
+
   }
 
-  const periodGroups = {};
 
-  shots.forEach(shot => {
-    const period = shot.period || "GAME";
+  const periods = {};
 
-    if (!periodGroups[period]) {
-      periodGroups[period] = {
-        attempts: 0,
-        made: 0,
-        points: 0
-      };
+
+  state.shots.forEach(
+    shot => {
+
+      const p =
+        shot.period || 1;
+
+
+      if (!periods[p]) {
+
+        periods[p] = {
+          made: 0,
+          total: 0
+        };
+
+      }
+
+
+      periods[p].total += 1;
+
+
+      if (
+        shot.made
+      ) {
+
+        periods[p].made +=
+          1;
+
+      }
+
     }
+  );
 
-    periodGroups[period].attempts += 1;
 
-    if (shot.made) {
-      periodGroups[period].made += 1;
-      periodGroups[period].points +=
-        shot.pointValue;
-    }
-  });
+  container.innerHTML =
+    Object.entries(
+      periods
+    )
+      .map(
+        ([period, data]) => {
 
-  container.innerHTML = Object.entries(
-    periodGroups
-  )
-    .map(([period, values]) => {
-      const percentage = Math.round(
-        (values.made /
-          Math.max(values.attempts, 1)) *
-          100
+          const pct =
+            data.total
+              ? (
+                  data.made /
+                  data.total *
+                  100
+                ).toFixed(1)
+              : "0.0";
+
+
+          return `
+
+            <div class="shot-trend-row">
+
+              <span>
+                ${period}Q
+              </span>
+
+              <strong>
+                ${data.made}/${data.total}
+              </strong>
+
+              <span>
+                ${pct}%
+              </span>
+
+            </div>
+
+          `;
+
+        }
+      )
+      .join("");
+
+}
+
+
+/* =========================================================
+   59. 슛 초기화
+========================================================= */
+
+function clearShots() {
+
+  if (
+    !confirm(
+      "슛차트를 초기화할까요?"
+    )
+  ) {
+
+    return;
+
+  }
+
+
+  state.shots = [];
+
+  renderShotChart();
+
+  renderShotSummary();
+
+  renderZoneAnalysis();
+
+  renderShotTrend();
+
+}
+
+
+/* =========================================================
+   60. 영상 기능
+========================================================= */
+
+function bindVideoEvents() {
+
+  const fileInput =
+    document.getElementById(
+      "videoFileInput"
+    );
+
+
+  fileInput?.addEventListener(
+    "change",
+    event => {
+
+      const file =
+        event.target.files?.[0];
+
+
+      if (!file)
+        return;
+
+
+      const video =
+        document.getElementById(
+          "analysisVideo"
+        );
+
+
+      if (!video)
+        return;
+
+
+      video.src =
+        URL.createObjectURL(
+          file
+        );
+
+
+      setText(
+        "videoFileName",
+        file.name
       );
 
-      return `
-        <div class="shot-trend-row">
-          <strong>${escapeHtml(period)}</strong>
-
-          <span>
-            성공 ${values.made} · 시도 ${values.attempts}
-          </span>
-
-          <strong>
-            ${percentage}% · ${values.points}점
-          </strong>
-        </div>
-      `;
-    })
-    .join("");
-}
-
-/* =========================
-   영상 파일 불러오기
-========================= */
-
-const analysisVideo = document.getElementById(
-  "analysisVideo"
-);
-
-function bindVideoControls() {
-  const fileInput = document.getElementById(
-    "videoFileInput"
-  );
-
-  const youtubeButton = document.getElementById(
-    "loadYoutubeBtn"
-  );
-
-  if (fileInput) {
-    fileInput.addEventListener(
-      "change",
-      handleVideoFile
-    );
-  }
-
-  if (youtubeButton) {
-    youtubeButton.addEventListener(
-      "click",
-      loadYoutubeVideo
-    );
-  }
-
-  bindVideoSeekButton("back10Btn", -10);
-  bindVideoSeekButton("back5Btn", -5);
-  bindVideoSeekButton("forward5Btn", 5);
-  bindVideoSeekButton("forward10Btn", 10);
-
-  bindVideoSpeedButton("speed05Btn", 0.5);
-  bindVideoSpeedButton("speed10Btn", 1);
-  bindVideoSpeedButton("speed15Btn", 1.5);
-  bindVideoSpeedButton("speed20Btn", 2);
-
-  const playButton = document.getElementById(
-    "playPauseBtn"
-  );
-
-  if (playButton) {
-    playButton.addEventListener(
-      "click",
-      toggleVideoPlayback
-    );
-  }
-
-  document.querySelectorAll(".tag-btn").forEach(
-    button => {
-      button.addEventListener("click", () => {
-        selectVideoTag(button);
-      });
     }
   );
 
+
+  const video =
+    document.getElementById(
+      "analysisVideo"
+    );
+
+
   document
-    .getElementById("saveVideoTagBtn")
+    .getElementById(
+      "playPauseBtn"
+    )
     ?.addEventListener(
       "click",
-      saveCurrentVideoTag
-    );
+      () => {
 
-  document
-    .getElementById("clearVideoTagsBtn")
-    ?.addEventListener(
-      "click",
-      clearAllVideoTags
-    );
-}
+        if (
+          video.paused
+        ) {
 
-function handleVideoFile(event) {
-  const file = event.target.files?.[0];
+          video.play();
 
-  if (!file) {
-    return;
-  }
-
-  const objectUrl =
-    URL.createObjectURL(file);
-
-  analysisVideo.src = objectUrl;
-  analysisVideo.classList.remove("hidden");
-
-  document
-    .getElementById("youtubePlayerWrap")
-    ?.classList.add("hidden");
-
-  document.getElementById(
-    "videoFileName"
-  ).textContent = file.name;
-
-  currentVideoType = "file";
-}
-
-function bindVideoSeekButton(buttonId, seconds) {
-  const button = document.getElementById(buttonId);
-
-  if (!button) {
-    return;
-  }
-
-  button.addEventListener("click", () => {
-    seekVideo(seconds);
-  });
-}
-
-function bindVideoSpeedButton(buttonId, speed) {
-  const button = document.getElementById(buttonId);
-
-  if (!button) {
-    return;
-  }
-
-  button.addEventListener("click", () => {
-    setVideoSpeed(speed);
-  });
-}
-
-function seekVideo(seconds) {
-  if (
-    currentVideoType === "youtube" &&
-    youtubePlayer
-  ) {
-    const currentTime =
-      youtubePlayer.getCurrentTime() || 0;
-
-    youtubePlayer.seekTo(
-      Math.max(0, currentTime + seconds),
-      true
-    );
-
-    return;
-  }
-
-  if (!analysisVideo) {
-    return;
-  }
-
-  analysisVideo.currentTime = Math.max(
-    0,
-    analysisVideo.currentTime + seconds
-  );
-}
-
-function setVideoSpeed(speed) {
-  if (
-    currentVideoType === "youtube" &&
-    youtubePlayer
-  ) {
-    youtubePlayer.setPlaybackRate(speed);
-    return;
-  }
-
-  if (analysisVideo) {
-    analysisVideo.playbackRate = speed;
-  }
-}
-
-function toggleVideoPlayback() {
-  if (
-    currentVideoType === "youtube" &&
-    youtubePlayer
-  ) {
-    const status =
-      youtubePlayer.getPlayerState();
-
-    if (status === 1) {
-      youtubePlayer.pauseVideo();
-    } else {
-      youtubePlayer.playVideo();
-    }
-
-    return;
-  }
-
-  if (!analysisVideo) {
-    return;
-  }
-
-  if (analysisVideo.paused) {
-    analysisVideo.play();
-  } else {
-    analysisVideo.pause();
-  }
-}
-
-function getCurrentVideoTime() {
-  if (
-    currentVideoType === "youtube" &&
-    youtubePlayer
-  ) {
-    return youtubePlayer.getCurrentTime() || 0;
-  }
-
-  return analysisVideo?.currentTime || 0;
-}
-
-/* =========================
-   유튜브
-========================= */
-
-window.onYouTubeIframeAPIReady = function () {
-  youtubeReady = true;
-};
-
-function loadYoutubeVideo() {
-  const input = document.getElementById(
-    "youtubeUrlInput"
-  );
-
-  const videoId = extractYoutubeId(
-    input?.value.trim() || ""
-  );
-
-  if (!videoId) {
-    alert("올바른 유튜브 주소를 입력해주세용.");
-    return;
-  }
-
-  if (
-    !youtubeReady ||
-    typeof YT === "undefined"
-  ) {
-    alert("유튜브 플레이어를 불러오는 중이에용.");
-    return;
-  }
-
-  analysisVideo?.classList.add("hidden");
-
-  document
-    .getElementById("youtubePlayerWrap")
-    ?.classList.remove("hidden");
-
-  if (youtubePlayer) {
-    youtubePlayer.loadVideoById(videoId);
-  } else {
-    youtubePlayer = new YT.Player(
-      "youtubePlayer",
-      {
-        videoId,
-        playerVars: {
-          playsinline: 1,
-          controls: 1
         }
+
+        else {
+
+          video.pause();
+
+        }
+
       }
     );
-  }
 
-  currentVideoType = "youtube";
+
+  const seek =
+    seconds => {
+
+      if (!video)
+        return;
+
+
+      video.currentTime =
+        Math.max(
+          0,
+          Math.min(
+            video.duration ||
+              Infinity,
+            video.currentTime +
+              seconds
+          )
+        );
+
+    };
+
+
+  document
+    .getElementById(
+      "back10Btn"
+    )
+    ?.addEventListener(
+      "click",
+      () => seek(-10)
+    );
+
+
+  document
+    .getElementById(
+      "back5Btn"
+    )
+    ?.addEventListener(
+      "click",
+      () => seek(-5)
+    );
+
+
+  document
+    .getElementById(
+      "forward5Btn"
+    )
+    ?.addEventListener(
+      "click",
+      () => seek(5)
+    );
+
+
+  document
+    .getElementById(
+      "forward10Btn"
+    )
+    ?.addEventListener(
+      "click",
+      () => seek(10)
+    );
+
+
+  [
+    ["speed05Btn", 0.5],
+    ["speed10Btn", 1],
+    ["speed15Btn", 1.5],
+    ["speed20Btn", 2]
+  ]
+    .forEach(
+      ([id, speed]) => {
+
+        document
+          .getElementById(id)
+          ?.addEventListener(
+            "click",
+            () => {
+
+              if (video) {
+
+                video.playbackRate =
+                  speed;
+
+              }
+
+            }
+          );
+
+      }
+    );
+
+
+  document
+    .querySelectorAll(
+      ".tag-btn"
+    )
+    .forEach(
+      button => {
+
+        button.addEventListener(
+          "click",
+          () => {
+
+            document
+              .querySelectorAll(
+                ".tag-btn"
+              )
+              .forEach(
+                b =>
+                  b.classList.remove(
+                    "selected"
+                  )
+              );
+
+
+            button.classList.add(
+              "selected"
+            );
+
+          }
+        );
+
+      }
+    );
+
+
+  document
+    .getElementById(
+      "saveVideoTagBtn"
+    )
+    ?.addEventListener(
+      "click",
+      saveVideoTag
+    );
+
+
+  document
+    .getElementById(
+      "clearVideoTagsBtn"
+    )
+    ?.addEventListener(
+      "click",
+      () => {
+
+        state.videoTags = [];
+
+        renderVideoTags();
+
+      }
+    );
+
 }
 
-function extractYoutubeId(url) {
-  const patterns = [
-    /youtu\.be\/([^?&]+)/,
-    /youtube\.com\/watch\?v=([^?&]+)/,
-    /youtube\.com\/embed\/([^?&]+)/,
-    /youtube\.com\/shorts\/([^?&]+)/
-  ];
 
-  for (const pattern of patterns) {
-    const match = url.match(pattern);
+function saveVideoTag() {
 
-    if (match) {
-      return match[1];
-    }
-  }
+  const video =
+    document.getElementById(
+      "analysisVideo"
+    );
 
-  return "";
-}
 
-/* =========================
-   영상 태그
-========================= */
+  const selectedTag =
+    document.querySelector(
+      ".tag-btn.selected"
+    );
 
-function selectVideoTag(button) {
-  document.querySelectorAll(".tag-btn").forEach(
-    item => {
-      item.classList.remove("selected");
-    }
-  );
 
-  button.classList.add("selected");
-  selectedVideoTag = button.dataset.tag || "";
-}
+  state.videoTags.push({
 
-function saveCurrentVideoTag() {
-  const playerId =
-    document.getElementById("videoPlayerSelect")
-      ?.value || "";
+    id:
+      cryptoRandomId(),
 
-  const player = getPlayer(playerId);
+    time:
+      video?.currentTime || 0,
 
-  if (!player) {
-    alert("장면과 연결할 선수를 선택해주세용.");
-    return;
-  }
+    playerId:
+      value(
+        "videoPlayerSelect"
+      ),
 
-  if (!selectedVideoTag) {
-    alert("장면 태그를 선택해주세용.");
-    return;
-  }
+    team:
+      value(
+        "videoTeamSelect"
+      ),
 
-  const memo =
-    document.getElementById("videoTagMemo")
-      ?.value.trim() || "";
+    tag:
+      selectedTag?.dataset.tag ||
+      "일반 장면",
 
-  state.videoTags.unshift({
-    id: createId("video-tag"),
-    playerId: player.id,
-    playerName: player.name,
-    team: player.team,
+    memo:
+      value(
+        "videoTagMemo"
+      ),
 
-    tag: selectedVideoTag,
-    memo,
+    createdAt:
+      Date.now()
 
-    seconds: getCurrentVideoTime(),
-    videoType: currentVideoType,
-
-    period: getPeriodKey(),
-    createdAt: Date.now()
   });
 
-  selectedVideoTag = "";
 
-  document.querySelectorAll(".tag-btn").forEach(
-    item => {
-      item.classList.remove("selected");
-    }
-  );
-
-  const memoInput = document.getElementById(
-    "videoTagMemo"
-  );
-
-  if (memoInput) {
-    memoInput.value = "";
-  }
-
-  saveState();
   renderVideoTags();
+
 }
 
-function clearAllVideoTags() {
-  const confirmed = confirm(
-    "저장된 영상 장면 태그를 모두 삭제할까용?"
-  );
-
-  if (!confirmed) {
-    return;
-  }
-
-  state.videoTags = [];
-
-  saveState();
-  renderVideoTags();
-}
 
 function renderVideoTags() {
-  const container = document.getElementById(
-    "videoTagList"
-  );
 
-  if (!container) {
+  const container =
+    document.getElementById(
+      "videoTagList"
+    );
+
+
+  if (!container)
     return;
-  }
 
-  if (state.videoTags.length === 0) {
+
+  if (
+    state.videoTags.length === 0
+  ) {
+
     container.innerHTML = `
       <div class="empty-message">
         저장된 영상 태그가 없습니다.
@@ -4496,1906 +4747,1111 @@ function renderVideoTags() {
     `;
 
     return;
+
   }
 
-  container.innerHTML = state.videoTags
-    .map(tag => {
-      return `
-        <div class="video-tag-row">
-          <button
-            type="button"
-            data-seek-video-tag="${tag.seconds}"
-          >
-            ${formatTime(Math.floor(tag.seconds))}
-          </button>
 
-          <div>
+  container.innerHTML =
+    state.videoTags
+      .slice()
+      .reverse()
+      .map(
+        tag => `
+
+          <div class="video-tag-row">
+
             <strong>
-              ${escapeHtml(tag.playerName)}
-              · ${escapeHtml(tag.tag)}
+              ${formatVideoTime(
+                tag.time
+              )}
             </strong>
 
-            ${
-              tag.memo
-                ? `<p>${escapeHtml(tag.memo)}</p>`
-                : ""
-            }
+            <div>
+
+              <strong>
+                ${escapeHTML(
+                  tag.tag
+                )}
+              </strong>
+
+              <p>
+                ${escapeHTML(
+                  tag.memo ||
+                  ""
+                )}
+              </p>
+
+            </div>
+
+            <button
+              type="button"
+              data-delete-video-tag="${tag.id}"
+            >
+              삭제
+            </button>
+
           </div>
 
-          <button
-            type="button"
-            data-delete-video-tag="${tag.id}"
-          >
-            삭제
-          </button>
-        </div>
-      `;
-    })
-    .join("");
-}
+        `
+      )
+      .join("");
 
-function bindVideoTagListEvents() {
-  document.addEventListener("click", event => {
-    const seekTime =
-      event.target.dataset.seekVideoTag;
 
-    const deleteId =
-      event.target.dataset.deleteVideoTag;
+  container
+    .querySelectorAll(
+      "[data-delete-video-tag]"
+    )
+    .forEach(
+      button => {
 
-    if (seekTime !== undefined) {
-      jumpToVideoTime(Number(seekTime));
-    }
+        button.addEventListener(
+          "click",
+          () => {
 
-    if (deleteId) {
-      deleteVideoTag(deleteId);
-    }
-  });
-}
+            state.videoTags =
+              state.videoTags.filter(
+                tag =>
+                  tag.id !==
+                  button.dataset
+                    .deleteVideoTag
+              );
 
-function jumpToVideoTime(seconds) {
-  if (
-    currentVideoType === "youtube" &&
-    youtubePlayer
-  ) {
-    youtubePlayer.seekTo(seconds, true);
-    return;
-  }
+            renderVideoTags();
 
-  if (analysisVideo) {
-    analysisVideo.currentTime = seconds;
-  }
-}
+          }
+        );
 
-function deleteVideoTag(tagId) {
-  state.videoTags = state.videoTags.filter(
-    tag => tag.id !== tagId
-  );
-
-  saveState();
-  renderVideoTags();
-}
-
-/* =========================
-   4부 렌더링 묶음
-========================= */
-
-function renderShotAndVideoPartFour() {
-  drawAllCourts();
-  renderShotSummary();
-  renderZoneAnalysis();
-  renderShotTrend();
-  renderVideoTags();
-
-  const heatmapButton = document.getElementById(
-    "toggleHeatmapBtn"
-  );
-
-  if (heatmapButton) {
-    heatmapButton.textContent = state.heatmap
-      ? "히트맵 끄기"
-      : "히트맵 켜기";
-  }
-}
-
-/* =========================
-   4부 실행
-========================= */
-
-function initializeAppPartFour() {
-  bindShotChartButtons();
-  bindVideoControls();
-  bindVideoTagListEvents();
-
-  renderShotAndVideoPartFour();
-}
-
-initializeAppPartFour();
-/* =========================
-   리포트 버튼 연결
-========================= */
-
-function bindReportButtons() {
-  document
-    .getElementById("generateGameReportBtn")
-    ?.addEventListener("click", generateGameReport);
-
-  document
-    .getElementById("generatePlayerReportBtn")
-    ?.addEventListener("click", generatePlayerReport);
-
-  document
-    .getElementById("generateTrainingBtn")
-    ?.addEventListener("click", generateTrainingPlan);
-
-  document
-    .getElementById("printReportBtn")
-    ?.addEventListener("click", () => {
-      window.print();
-    });
-}
-
-/* =========================
-   공통 분석 계산
-========================= */
-
-function calculateFieldGoalPercentage(player) {
-  if (!player || player.fga === 0) {
-    return 0;
-  }
-
-  return Math.round(
-    (player.fgm / player.fga) * 100
-  );
-}
-
-function calculateTeamFieldGoalPercentage(teamStats) {
-  if (!teamStats || teamStats.fga === 0) {
-    return 0;
-  }
-
-  return Math.round(
-    (teamStats.fgm / teamStats.fga) * 100
-  );
-}
-
-function getWinningTeam() {
-  const scoreA = getTeamScore("A");
-  const scoreB = getTeamScore("B");
-
-  if (scoreA === scoreB) {
-    return null;
-  }
-
-  return scoreA > scoreB ? "A" : "B";
-}
-
-function getBestPlayer() {
-  if (state.players.length === 0) {
-    return null;
-  }
-
-  return [...state.players].sort((a, b) => {
-    return (
-      calculateMvpScore(b) -
-      calculateMvpScore(a)
+      }
     );
-  })[0];
+
 }
 
-function getPlayerShotData(playerId) {
-  const shots = state.shots.filter(
-    shot => shot.playerId === playerId
+
+/* =========================================================
+   61. 전력분석
+========================================================= */
+
+function renderAnalysis() {
+
+  renderRanking(
+    "plusMinusRanking",
+    "plusMinus"
   );
 
-  const made = shots.filter(
-    shot => shot.made
-  ).length;
 
-  return {
-    shots,
-    made,
-    attempts: shots.length,
-    percentage:
-      shots.length === 0
-        ? 0
-        : Math.round(
-            (made / shots.length) * 100
-          )
-  };
-}
-
-function getPlayerVideoTagSummary(playerId) {
-  const tags = state.videoTags.filter(
-    tag => tag.playerId === playerId
+  renderRanking(
+    "offenseRanking",
+    "offense"
   );
 
-  const summary = {};
 
-  tags.forEach(tag => {
-    summary[tag.tag] =
-      (summary[tag.tag] || 0) + 1;
-  });
+  renderRanking(
+    "defenseRanking",
+    "defense"
+  );
 
-  return {
-    tags,
-    summary
-  };
+
+  const style =
+    document.getElementById(
+      "teamStyleAnalysis"
+    );
+
+
+  if (!style)
+    return;
+
+
+  style.innerHTML =
+    ["A", "B"]
+      .map(
+        team => {
+
+          const s =
+            state.teams[
+              team
+            ].players.reduce(
+              (
+                total,
+                player
+              ) => {
+
+                total.pts +=
+                  player.stats.pts;
+
+                total.ast +=
+                  player.stats.ast;
+
+                total.reb +=
+                  player.stats.reb;
+
+                return total;
+
+              },
+              {
+                pts: 0,
+                ast: 0,
+                reb: 0
+              }
+            );
+
+
+          return `
+
+            <div class="team-style-card">
+
+              <h4>
+                ${escapeHTML(
+                  state.teams[team].name
+                )}
+              </h4>
+
+              <p>
+                득점 ${s.pts} ·
+                어시스트 ${s.ast} ·
+                리바운드 ${s.reb}
+              </p>
+
+              <div class="style-meter">
+
+                <div
+                  style="width:${Math.min(
+                    100,
+                    s.pts * 4
+                  )}%"
+                ></div>
+
+              </div>
+
+            </div>
+
+          `;
+
+        }
+      )
+      .join("");
+
 }
 
-/* =========================
-   경기 리포트
-========================= */
+
+function renderRanking(
+  id,
+  type
+) {
+
+  const container =
+    document.getElementById(
+      id
+    );
+
+
+  if (!container)
+    return;
+
+
+  const players =
+    getAllPlayers();
+
+
+  let ranked;
+
+
+  if (
+    type === "plusMinus"
+  ) {
+
+    ranked =
+      [...players]
+        .sort(
+          (
+            a,
+            b
+          ) =>
+            b.stats.plusMinus -
+            a.stats.plusMinus
+        );
+
+  }
+
+  else if (
+    type === "offense"
+  ) {
+
+    ranked =
+      [...players]
+        .sort(
+          (
+            a,
+            b
+          ) =>
+            offensiveScore(b) -
+            offensiveScore(a)
+        );
+
+  }
+
+  else {
+
+    ranked =
+      [...players]
+        .sort(
+          (
+            a,
+            b
+          ) =>
+            defensiveScore(b) -
+            defensiveScore(a)
+        );
+
+  }
+
+
+  container.innerHTML =
+    ranked
+      .slice(0, 8)
+      .map(
+        (
+          player,
+          index
+        ) => {
+
+          const score =
+            type === "plusMinus"
+              ? player.stats.plusMinus
+              : type === "offense"
+                ? offensiveScore(
+                    player
+                  )
+                : defensiveScore(
+                    player
+                  );
+
+
+          return `
+
+            <div class="ranking-row">
+
+              <div class="rank-number">
+                ${index + 1}
+              </div>
+
+              <div>
+
+                <strong>
+                  #${player.number}
+                  ${escapeHTML(
+                    player.name
+                  )}
+                </strong>
+
+                <span>
+                  ${
+                    player.team === "A"
+                      ? state.teams.A.name
+                      : state.teams.B.name
+                  }
+                </span>
+
+              </div>
+
+              <b>
+                ${score.toFixed
+                  ? score.toFixed(1)
+                  : score}
+              </b>
+
+            </div>
+
+          `;
+
+        }
+      )
+      .join("");
+
+}
+
+
+/* =========================================================
+   62. 리포트
+========================================================= */
+
+function renderReports() {
+
+  /* 현재 데이터로 다시 만들지는 않고
+     사용자가 버튼을 누를 때 생성 */
+
+}
+
 
 function generateGameReport() {
-  updatePlayerImpactScores();
-  updatePeriodSummaryRecord();
 
-  const teamA = getTeamStats("A");
-  const teamB = getTeamStats("B");
+  const a =
+    getTeamScore("A");
 
-  const scoreA = teamA.pts;
-  const scoreB = teamB.pts;
 
-  const fieldGoalA =
-    calculateTeamFieldGoalPercentage(teamA);
+  const b =
+    getTeamScore("B");
 
-  const fieldGoalB =
-    calculateTeamFieldGoalPercentage(teamB);
 
-  const winningTeam = getWinningTeam();
-  const mvp = getBestPlayer();
+  const winner =
+    a === b
+      ? "무승부"
+      : a > b
+        ? state.teams.A.name
+        : state.teams.B.name;
 
-  const output = document.getElementById(
-    "gameReportOutput"
-  );
 
-  if (!output) {
+  const output =
+    document.getElementById(
+      "gameReportOutput"
+    );
+
+
+  if (!output)
     return;
-  }
 
-  const resultText = winningTeam
-    ? `${escapeHtml(
-        getTeamName(winningTeam)
-      )} 승리`
-    : "무승부";
-
-  const scoreDifference = Math.abs(
-    scoreA - scoreB
-  );
-
-  const gameFlowText = createGameFlowText(
-    teamA,
-    teamB,
-    scoreDifference
-  );
-
-  const keyFactors = createGameKeyFactors(
-    teamA,
-    teamB
-  );
-
-  const periodReport = createPeriodReportHtml();
 
   output.innerHTML = `
+
     <div class="report-highlight">
-      <strong>
-        ${escapeHtml(state.gameTitle)}
-      </strong>
+
+      <h4>
+        ${escapeHTML(
+          state.game.title
+        )}
+      </h4>
 
       <p>
-        ${escapeHtml(state.teamAName)}
-        ${scoreA}
+        ${
+          state.teams.A.name
+        }
+        <strong>${a}</strong>
         :
-        ${scoreB}
-        ${escapeHtml(state.teamBName)}
+        <strong>${b}</strong>
+        ${
+          state.teams.B.name
+        }
       </p>
 
-      <p>${resultText}</p>
+      <p>
+        승리팀:
+        <strong>
+          ${escapeHTML(
+            winner
+          )}
+        </strong>
+      </p>
+
     </div>
 
-    <h4>경기 정보</h4>
+
+    <h4>
+      경기 요약
+    </h4>
 
     <p>
-      경기 날짜:
-      ${escapeHtml(state.gameDate || "미입력")}
+      모드:
+      ${
+        state.mode === "3v3"
+          ? "3대3"
+          : "5대5"
+      }
     </p>
 
     <p>
-      경기 장소:
-      ${escapeHtml(state.gameLocation || "미입력")}
+      현재 구간:
+      ${state.game.period}Q
     </p>
 
-    <p>
-      경기 방식:
-      ${escapeHtml(state.mode)}
-    </p>
-
-    <h4>경기 흐름</h4>
-
-    <p>${gameFlowText}</p>
-
-    <h4>팀 기록 비교</h4>
-
-    <p>
-      ${escapeHtml(state.teamAName)}:
-      야투율 ${fieldGoalA}%,
-      리바운드 ${teamA.reb}개,
-      어시스트 ${teamA.ast}개,
-      스틸 ${teamA.stl}개,
-      턴오버 ${teamA.to}개예용.
-    </p>
-
-    <p>
-      ${escapeHtml(state.teamBName)}:
-      야투율 ${fieldGoalB}%,
-      리바운드 ${teamB.reb}개,
-      어시스트 ${teamB.ast}개,
-      스틸 ${teamB.stl}개,
-      턴오버 ${teamB.to}개예용.
-    </p>
-
-    <h4>승부의 핵심 요인</h4>
-
-    <ul>
-      ${keyFactors
-        .map(
-          factor =>
-            `<li>${escapeHtml(factor)}</li>`
-        )
-        .join("")}
-    </ul>
-
-    ${periodReport}
-
-    <h4>경기 MVP</h4>
-
-    ${
-      mvp
-        ? `
-          <div class="report-blue-box">
-            <strong>
-              #${mvp.number}
-              ${escapeHtml(mvp.name)}
-            </strong>
-
-            <p>
-              ${mvp.pts}득점,
-              ${mvp.reb}리바운드,
-              ${mvp.ast}어시스트,
-              ${mvp.stl}스틸,
-              ${mvp.blk}블록,
-              +/- ${formatSignedNumber(
-                mvp.plusMinus
-              )}
-            </p>
-
-            <p>
-              MVP 지수:
-              ${calculateMvpScore(mvp).toFixed(1)}
-            </p>
-          </div>
-        `
-        : `
-          <p>선수 기록이 없습니다.</p>
-        `
-    }
   `;
 
-  document.getElementById(
-    "aiCommentOutput"
-  ).innerHTML = `
-    <div class="report-highlight">
-      ${escapeHtml(
-        createGameAiComment(teamA, teamB)
-      )}
-    </div>
-  `;
 }
 
-function createGameFlowText(
-  teamA,
-  teamB,
-  scoreDifference
-) {
-  if (teamA.pts === 0 && teamB.pts === 0) {
-    return "아직 득점 기록이 없어 경기 흐름을 분석하기 어려워용.";
-  }
-
-  if (scoreDifference <= 3) {
-    return "경기 종료까지 작은 실수 하나가 결과를 바꿀 수 있었던 접전이었어용. 턴오버 관리와 마지막 공격 선택이 특히 중요했어용.";
-  }
-
-  if (scoreDifference <= 8) {
-    return "한 팀이 조금씩 우위를 만들었지만 상대 팀도 충분히 추격할 수 있었던 경기였어용. 리바운드와 공격 효율에서 차이가 나타났어용.";
-  }
-
-  return "점수 차가 크게 벌어진 경기였으며 공격 효율, 수비 활동량 또는 턴오버 관리에서 뚜렷한 차이가 나타났어용.";
-}
-
-function createGameKeyFactors(teamA, teamB) {
-  const factors = [];
-
-  const fieldGoalA =
-    calculateTeamFieldGoalPercentage(teamA);
-
-  const fieldGoalB =
-    calculateTeamFieldGoalPercentage(teamB);
-
-  if (Math.abs(fieldGoalA - fieldGoalB) >= 8) {
-    const betterTeam =
-      fieldGoalA > fieldGoalB
-        ? state.teamAName
-        : state.teamBName;
-
-    factors.push(
-      `${betterTeam}의 야투 성공률이 더 높았어용.`
-    );
-  }
-
-  if (Math.abs(teamA.reb - teamB.reb) >= 3) {
-    const betterTeam =
-      teamA.reb > teamB.reb
-        ? state.teamAName
-        : state.teamBName;
-
-    factors.push(
-      `${betterTeam}이 리바운드에서 우위를 보였어용.`
-    );
-  }
-
-  if (Math.abs(teamA.ast - teamB.ast) >= 3) {
-    const betterTeam =
-      teamA.ast > teamB.ast
-        ? state.teamAName
-        : state.teamBName;
-
-    factors.push(
-      `${betterTeam}의 패스 전개와 동료 활용이 더 좋았어용.`
-    );
-  }
-
-  if (Math.abs(teamA.to - teamB.to) >= 2) {
-    const betterTeam =
-      teamA.to < teamB.to
-        ? state.teamAName
-        : state.teamBName;
-
-    factors.push(
-      `${betterTeam}이 턴오버를 더 적게 기록하며 공격 기회를 지켰어용.`
-    );
-  }
-
-  if (
-    Math.abs(
-      teamA.stl +
-        teamA.blk -
-        (teamB.stl + teamB.blk)
-    ) >= 3
-  ) {
-    const betterTeam =
-      teamA.stl + teamA.blk >
-      teamB.stl + teamB.blk
-        ? state.teamAName
-        : state.teamBName;
-
-    factors.push(
-      `${betterTeam}의 스틸과 블록 등 수비 활동량이 높았어용.`
-    );
-  }
-
-  if (factors.length === 0) {
-    factors.push(
-      "두 팀의 주요 기록 차이가 크지 않아 집중력과 세부 플레이가 승부에 영향을 줬어용."
-    );
-  }
-
-  return factors;
-}
-
-function createPeriodReportHtml() {
-  if (state.periodStats.length === 0) {
-    return "";
-  }
-
-  return `
-    <h4>구간별 결과</h4>
-
-    <ul>
-      ${state.periodStats
-        .map(
-          period => `
-            <li>
-              ${escapeHtml(period.period)}:
-              ${escapeHtml(state.teamAName)}
-              ${period.teamAScore}
-              -
-              ${period.teamBScore}
-              ${escapeHtml(state.teamBName)}
-            </li>
-          `
-        )
-        .join("")}
-    </ul>
-  `;
-}
-
-function createGameAiComment(teamA, teamB) {
-  const totalTurnovers =
-    teamA.to + teamB.to;
-
-  const totalAssists =
-    teamA.ast + teamB.ast;
-
-  const totalDefense =
-    teamA.stl +
-    teamA.blk +
-    teamB.stl +
-    teamB.blk;
-
-  if (totalTurnovers >= 10) {
-    return "양 팀 모두 공격 기회는 많았지만 턴오버 관리가 경기의 가장 큰 과제였어용.";
-  }
-
-  if (totalAssists >= 12) {
-    return "개인 공격보다 패스와 팀플레이가 돋보인 경기였어용.";
-  }
-
-  if (totalDefense >= 10) {
-    return "스틸과 블록이 많이 나온 수비 중심의 경기였어용.";
-  }
-
-  if (
-    Math.abs(teamA.pts - teamB.pts) <= 3
-  ) {
-    return "마지막까지 집중력을 유지한 팀이 승리에 가까웠던 접전이었어용.";
-  }
-
-  return "공격 효율과 리바운드 참여가 경기 결과를 결정한 경기였어용.";
-}
-
-/* =========================
-   선수 리포트
-========================= */
 
 function generatePlayerReport() {
-  updatePlayerImpactScores();
 
-  const playerId =
-    document.getElementById(
+  const id =
+    value(
       "reportPlayerSelect"
-    )?.value || "";
+    );
 
-  const player = getPlayer(playerId);
+
+  const player =
+    findPlayer(id);
+
+
+  const output =
+    document.getElementById(
+      "playerReportOutput"
+    );
+
+
+  if (!output)
+    return;
+
 
   if (!player) {
-    alert("리포트를 생성할 선수를 선택해주세용.");
+
+    output.innerHTML = `
+      <div class="empty-message">
+        선수를 선택해주세용.
+      </div>
+    `;
+
     return;
+
   }
 
-  const output = document.getElementById(
-    "playerReportOutput"
-  );
 
-  if (!output) {
-    return;
-  }
+  const s =
+    player.stats;
 
-  const fieldGoalPercentage =
-    calculateFieldGoalPercentage(player);
 
-  const shotData = getPlayerShotData(
-    player.id
-  );
+  const fgPct =
+    s.fga
+      ? (
+          s.fg /
+          s.fga *
+          100
+        ).toFixed(1)
+      : "0.0";
 
-  const videoData =
-    getPlayerVideoTagSummary(player.id);
-
-  const strengths =
-    createPlayerStrengths(
-      player,
-      fieldGoalPercentage
-    );
-
-  const weaknesses =
-    createPlayerWeaknesses(
-      player,
-      fieldGoalPercentage
-    );
 
   output.innerHTML = `
-    <div class="report-highlight">
-      <strong>
+
+    <div class="report-blue-box">
+
+      <h4>
         #${player.number}
-        ${escapeHtml(player.name)}
-      </strong>
+        ${escapeHTML(
+          player.name
+        )}
+      </h4>
 
       <p>
-        ${escapeHtml(getTeamName(player.team))}
-        · 출전 시간
-        ${formatTime(player.courtSeconds)}
+        PTS ${s.pts} ·
+        REB ${s.reb} ·
+        AST ${s.ast}
       </p>
+
+      <p>
+        STL ${s.stl} ·
+        BLK ${s.blk} ·
+        TO ${s.to}
+      </p>
+
+      <p>
+        FG ${s.fg}/${s.fga}
+        (${fgPct}%)
+      </p>
+
+      <p>
+        +/- ${s.plusMinus}
+      </p>
+
     </div>
 
-    <h4>기록 요약</h4>
-
-    <p>
-      ${player.pts}득점,
-      ${player.reb}리바운드,
-      ${player.ast}어시스트,
-      ${player.stl}스틸,
-      ${player.blk}블록,
-      ${player.to}턴오버,
-      ${player.pf}파울을 기록했어용.
-    </p>
-
-    <p>
-      야투 ${player.fgm}/${player.fga},
-      야투율 ${fieldGoalPercentage}%,
-      플러스·마이너스
-      ${formatSignedNumber(
-        player.plusMinus
-      )}예용.
-    </p>
-
-    <p>
-      공격 기여도
-      ${player.offenseScore.toFixed(1)},
-      수비 기여도
-      ${player.defenseScore.toFixed(1)}예용.
-    </p>
-
-    <h4>슛차트 기록</h4>
-
-    <p>
-      위치가 기록된 슛은
-      ${shotData.made}/${shotData.attempts},
-      성공률 ${shotData.percentage}%예용.
-    </p>
-
-    <h4>선수 강점</h4>
-
-    <ul>
-      ${strengths
-        .map(
-          strength =>
-            `<li>${escapeHtml(strength)}</li>`
-        )
-        .join("")}
-    </ul>
-
-    <h4>보완할 부분</h4>
-
-    <ul>
-      ${weaknesses
-        .map(
-          weakness =>
-            `<li>${escapeHtml(weakness)}</li>`
-        )
-        .join("")}
-    </ul>
-
-    <h4>영상 분석 기록</h4>
-
-    ${
-      videoData.tags.length > 0
-        ? `
-          <p>
-            총 ${videoData.tags.length}개의 장면이 저장됐어용.
-          </p>
-
-          <ul>
-            ${Object.entries(
-              videoData.summary
-            )
-              .map(
-                ([tag, count]) => `
-                  <li>
-                    ${escapeHtml(tag)}:
-                    ${count}회
-                  </li>
-                `
-              )
-              .join("")}
-          </ul>
-        `
-        : `
-          <p>
-            저장된 영상 분석 장면이 없습니다.
-          </p>
-        `
-    }
   `;
 
-  document.getElementById(
-    "aiCommentOutput"
-  ).innerHTML = `
-    <div class="report-highlight">
-      ${escapeHtml(
-        createPlayerAiComment(
-          player,
-          fieldGoalPercentage
-        )
-      )}
-    </div>
-  `;
-}
 
-function createPlayerStrengths(
-  player,
-  fieldGoalPercentage
-) {
-  const strengths = [];
-
-  if (player.pts >= 10) {
-    strengths.push(
-      "팀 공격을 이끄는 득점 생산력이 좋았어용."
-    );
-  }
-
-  if (
-    fieldGoalPercentage >= 50 &&
-    player.fga >= 4
-  ) {
-    strengths.push(
-      "높은 야투 성공률로 효율적인 공격을 보여줬어용."
-    );
-  }
-
-  if (player.reb >= 5) {
-    strengths.push(
-      "적극적인 리바운드 참여가 돋보였어용."
-    );
-  }
-
-  if (player.ast >= 4) {
-    strengths.push(
-      "동료의 득점 기회를 만드는 패스가 좋았어용."
-    );
-  }
-
-  if (player.stl >= 2) {
-    strengths.push(
-      "적극적인 압박 수비와 패스 차단이 좋았어용."
-    );
-  }
-
-  if (player.blk >= 2) {
-    strengths.push(
-      "골밑과 림 근처 수비에서 영향력이 있었어용."
-    );
-  }
-
-  if (player.plusMinus >= 5) {
-    strengths.push(
-      "출전 시간 동안 팀의 득실에 긍정적인 영향을 줬어용."
-    );
-  }
-
-  if (player.to <= 1 && player.ast >= 2) {
-    strengths.push(
-      "패스와 볼 관리가 안정적이었어용."
-    );
-  }
-
-  if (strengths.length === 0) {
-    strengths.push(
-      "경기에 꾸준히 참여하며 기본 역할을 수행했어용."
-    );
-  }
-
-  return strengths;
-}
-
-function createPlayerWeaknesses(
-  player,
-  fieldGoalPercentage
-) {
-  const weaknesses = [];
-
-  if (
-    fieldGoalPercentage < 40 &&
-    player.fga >= 4
-  ) {
-    weaknesses.push(
-      "슛 선택과 마무리 성공률을 높일 필요가 있어용."
-    );
-  }
-
-  if (player.to >= 3) {
-    weaknesses.push(
-      "압박 상황에서 볼 보호와 판단 속도를 보완해야 해용."
-    );
-  }
-
-  if (player.ast === 0) {
-    weaknesses.push(
-      "동료 위치를 확인하고 패스를 활용하는 플레이가 필요해용."
-    );
-  }
-
-  if (player.reb <= 1) {
-    weaknesses.push(
-      "슛 이후 박스아웃과 리바운드 참여를 높이면 좋아용."
-    );
-  }
-
-  if (
-    player.stl === 0 &&
-    player.blk === 0
-  ) {
-    weaknesses.push(
-      "수비 스텝과 도움수비에서 더 적극적인 움직임이 필요해용."
-    );
-  }
-
-  if (player.pf >= 4) {
-    weaknesses.push(
-      "불필요한 손 사용을 줄이고 수비 위치를 먼저 잡아야 해용."
-    );
-  }
-
-  if (player.plusMinus <= -5) {
-    weaknesses.push(
-      "출전 구간에서 공격과 수비의 연결을 더 안정적으로 유지해야 해용."
-    );
-  }
-
-  if (weaknesses.length === 0) {
-    weaknesses.push(
-      "큰 약점은 없었으며 현재 장점을 더 확실하게 발전시키면 좋아용."
-    );
-  }
-
-  return weaknesses;
-}
-
-function createPlayerAiComment(
-  player,
-  fieldGoalPercentage
-) {
-  if (
-    player.pts >= 10 &&
-    player.to <= 2 &&
-    fieldGoalPercentage >= 45
-  ) {
-    return "효율적인 득점과 안정적인 볼 관리가 돋보인 경기였어용.";
-  }
-
-  if (player.ast >= 5) {
-    return "패스로 동료를 살리고 경기 흐름을 만든 플레이메이커였어용.";
-  }
-
-  if (
-    player.stl + player.blk >= 4
-  ) {
-    return "수비 활동량과 집중력으로 팀에 큰 영향을 준 선수였어용.";
-  }
-
-  if (player.reb >= 6) {
-    return "적극적인 리바운드 참여로 팀의 공격 기회를 늘린 선수였어용.";
-  }
-
-  if (
-    fieldGoalPercentage < 35 &&
-    player.fga >= 5
-  ) {
-    return "공격 적극성은 좋았지만 더 좋은 슛 선택과 마무리가 필요해용.";
-  }
-
-  if (player.to >= 4) {
-    return "경기 운영에 적극적이었지만 압박 상황의 볼 관리가 아쉬웠어용.";
-  }
-
-  return "기본 역할을 수행했으며 자신의 대표 강점을 하나 더 확실하게 만들면 좋아용.";
-}
-
-/* =========================
-   추천 훈련
-========================= */
-
-function generateTrainingPlan() {
-  const playerId =
+  const ai =
     document.getElementById(
-      "reportPlayerSelect"
-    )?.value || "";
+      "aiCommentOutput"
+    );
 
-  const player = getPlayer(playerId);
 
-  const output = document.getElementById(
-    "trainingPlanOutput"
-  );
+  if (ai) {
 
-  if (!output) {
-    return;
+    ai.innerHTML = `
+
+      <div class="report-highlight">
+
+        ${
+          s.pts >= 10
+            ? "득점 생산력이 좋았어용."
+            : "득점 기회를 조금 더 만들어보면 좋아용."
+        }
+
+        ${
+          s.ast >= 3
+            ? " 패스 연결도 적극적이었어용."
+            : ""
+        }
+
+        ${
+          s.reb >= 5
+            ? " 리바운드 참여도도 좋았어용."
+            : ""
+        }
+
+      </div>
+
+    `;
+
   }
 
-  if (!player) {
-    output.innerHTML =
-      createTeamTrainingPlanHtml();
-
-    return;
-  }
-
-  output.innerHTML =
-    createPlayerTrainingPlanHtml(player);
 }
 
-function createPlayerTrainingPlanHtml(player) {
-  const fieldGoalPercentage =
-    calculateFieldGoalPercentage(player);
 
-  const trainingList = [];
+function generateTraining() {
 
-  if (
-    fieldGoalPercentage < 40 &&
-    player.fga >= 3
-  ) {
-    trainingList.push({
-      title: "게임 스피드 슈팅",
-      content:
-        "양쪽 45도, 코너, 정면에서 패스를 받은 뒤 빠르게 슛하는 훈련을 진행해용. 각 구역에서 성공 개수를 기록해용."
-    });
-  }
-
-  if (player.to >= 3) {
-    trainingList.push({
-      title: "압박 상황 볼 핸들링",
-      content:
-        "약한 손 드리블, 방향 전환, 수비 압박을 받으며 공을 지키는 훈련을 진행해용."
-    });
-  }
-
-  if (player.ast <= 1) {
-    trainingList.push({
-      title: "패스 시야 훈련",
-      content:
-        "드리블 중 고개를 들고 코너와 컷인 선수를 확인하는 2대2 또는 3대3 패스 훈련을 진행해용."
-    });
-  }
-
-  if (player.reb <= 1) {
-    trainingList.push({
-      title: "박스아웃·리바운드",
-      content:
-        "슛과 동시에 상대를 먼저 막고 공의 방향을 확인하는 박스아웃 훈련을 진행해용."
-    });
-  }
-
-  if (
-    player.stl === 0 &&
-    player.blk === 0
-  ) {
-    trainingList.push({
-      title: "수비 스텝·도움수비",
-      content:
-        "사이드 스텝, 클로즈아웃, 도움수비 후 복귀 동작을 반복해용."
-    });
-  }
-
-  if (player.pf >= 4) {
-    trainingList.push({
-      title: "파울 없는 수비",
-      content:
-        "손보다 발을 먼저 움직이고 공격수의 진행 방향을 막는 수비 훈련을 진행해용."
-    });
-  }
-
-  if (trainingList.length === 0) {
-    trainingList.push({
-      title: "약한 손 마무리",
-      content:
-        "약한 손 레이업, 플로터, 리버스 마무리를 양쪽에서 반복해용."
-    });
-
-    trainingList.push({
-      title: "실전 체력",
-      content:
-        "짧은 전력 질주 후 바로 슛과 수비를 수행하는 실전형 체력 훈련을 진행해용."
-    });
-  }
-
-  return `
-    <div class="report-highlight">
-      <strong>
-        #${player.number}
-        ${escapeHtml(player.name)}
-        추천 훈련
-      </strong>
-    </div>
-
-    ${trainingList
-      .map(
-        training => `
-          <div class="training-card">
-            <h4>
-              ${escapeHtml(training.title)}
-            </h4>
-
-            <p>
-              ${escapeHtml(training.content)}
-            </p>
-          </div>
-        `
-      )
-      .join("")}
-  `;
-}
-
-function createTeamTrainingPlanHtml() {
-  const teamA = getTeamStats("A");
-  const teamB = getTeamStats("B");
-
-  const totalTurnovers =
-    teamA.to + teamB.to;
-
-  const totalAssists =
-    teamA.ast + teamB.ast;
-
-  const totalRebounds =
-    teamA.reb + teamB.reb;
-
-  const trainingList = [];
-
-  if (totalTurnovers >= 8) {
-    trainingList.push({
-      title: "압박 탈출·볼 관리",
-      content:
-        "수비 압박을 받는 상황에서 안전한 패스 각도와 볼 보호를 연습해용."
-    });
-  }
-
-  if (totalAssists <= 5) {
-    trainingList.push({
-      title: "엑스트라 패스",
-      content:
-        "좋은 슛보다 더 좋은 슛을 만들기 위해 한 번 더 패스하는 훈련을 진행해용."
-    });
-  }
-
-  if (totalRebounds <= 8) {
-    trainingList.push({
-      title: "팀 박스아웃",
-      content:
-        "모든 선수가 자신의 상대를 확인하고 박스아웃한 뒤 리바운드에 참여해용."
-    });
-  }
-
-  if (trainingList.length === 0) {
-    trainingList.push({
-      title: "전환 공격",
-      content:
-        "수비 리바운드 후 빠르게 코트를 넓게 사용하며 속공을 전개해용."
-    });
-
-    trainingList.push({
-      title: "실전 슈팅",
-      content:
-        "패스, 컷인, 스크린 이후 실제 경기와 같은 속도로 슛을 시도해용."
-    });
-  }
-
-  return `
-    <div class="report-highlight">
-      <strong>팀 추천 훈련</strong>
-    </div>
-
-    ${trainingList
-      .map(
-        training => `
-          <div class="training-card">
-            <h4>
-              ${escapeHtml(training.title)}
-            </h4>
-
-            <p>
-              ${escapeHtml(training.content)}
-            </p>
-          </div>
-        `
-      )
-      .join("")}
-  `;
-}
-
-/* =========================
-   리포트 초기 표시
-========================= */
-
-function renderReportDefaults() {
-  const gameOutput = document.getElementById(
-    "gameReportOutput"
-  );
-
-  const playerOutput = document.getElementById(
-    "playerReportOutput"
-  );
-
-  const aiOutput = document.getElementById(
-    "aiCommentOutput"
-  );
-
-  const trainingOutput =
+  const output =
     document.getElementById(
       "trainingPlanOutput"
     );
 
-  if (
-    gameOutput &&
-    gameOutput.innerHTML.trim() === ""
-  ) {
-    gameOutput.innerHTML = `
-      <div class="empty-message">
-        경기 리포트를 생성해주세용.
-      </div>
-    `;
-  }
 
-  if (
-    playerOutput &&
-    playerOutput.innerHTML.trim() === ""
-  ) {
-    playerOutput.innerHTML = `
-      <div class="empty-message">
-        선수 리포트를 생성해주세용.
-      </div>
-    `;
-  }
+  if (!output)
+    return;
 
-  if (
-    aiOutput &&
-    aiOutput.innerHTML.trim() === ""
-  ) {
-    aiOutput.innerHTML = `
-      <div class="empty-message">
-        리포트를 생성하면 한줄평이 표시돼용.
-      </div>
-    `;
-  }
 
-  if (
-    trainingOutput &&
-    trainingOutput.innerHTML.trim() === ""
-  ) {
-    trainingOutput.innerHTML = `
-      <div class="empty-message">
-        추천 훈련을 생성해주세용.
-      </div>
-    `;
-  }
+  output.innerHTML = `
+
+    <div class="training-card">
+
+      <h4>
+        슈팅
+      </h4>
+
+      <p>
+        게임 상황에서의 캐치앤슛과
+        움직임 후 슛을 반복해보세용.
+      </p>
+
+    </div>
+
+
+    <div class="training-card">
+
+      <h4>
+        볼 핸들링
+      </h4>
+
+      <p>
+        압박 상황에서 방향 전환과
+        첫 스텝을 집중적으로 연습해보세용.
+      </p>
+
+    </div>
+
+
+    <div class="training-card">
+
+      <h4>
+        수비
+      </h4>
+
+      <p>
+        사이드 스텝과 도움수비 후
+        복귀 동작을 반복해보세용.
+      </p>
+
+    </div>
+
+  `;
+
 }
 
-/* =========================
-   5부 실행
-========================= */
 
-function initializeAppPartFive() {
-  bindReportButtons();
-  renderReportDefaults();
-}
+/* =========================================================
+   63. 리그
+========================================================= */
 
-initializeAppPartFive();
-/* =========================
-   저장 경기 관리
-========================= */
+function bindLeagueEvents() {
 
-function getSavedGames() {
-  try {
-    const saved = localStorage.getItem(SAVED_GAMES_KEY);
-
-    if (!saved) {
-      return [];
-    }
-
-    const parsed = JSON.parse(saved);
-
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (error) {
-    console.error("저장 경기 목록 불러오기 실패:", error);
-    return [];
-  }
-}
-
-function setSavedGames(games) {
-  try {
-    localStorage.setItem(
-      SAVED_GAMES_KEY,
-      JSON.stringify(games)
+  document
+    .getElementById(
+      "addLeagueTeamBtn"
+    )
+    ?.addEventListener(
+      "click",
+      addLeagueTeam
     );
-  } catch (error) {
-    console.error("저장 경기 목록 저장 실패:", error);
-  }
-}
 
-function createSavedGameData() {
-  updatePeriodSummaryRecord();
-  updatePlayerImpactScores();
-
-  return {
-    id: createId("saved-game"),
-    savedAt: Date.now(),
-
-    title: state.gameTitle,
-    date: state.gameDate,
-    competitionName: state.competitionName,
-    location: state.gameLocation,
-
-    mode: state.mode,
-
-    teamAName: state.teamAName,
-    teamBName: state.teamBName,
-
-    teamAScore: getTeamScore("A"),
-    teamBScore: getTeamScore("B"),
-
-    gameEnded: state.gameEnded,
-    state: deepClone(state)
-  };
-}
-
-function bindGameSaveButtons() {
-  document
-    .getElementById("saveGameBtn")
-    ?.addEventListener("click", saveCurrentGameToHistory);
 
   document
-    .getElementById("loadGameDataBtn")
-    ?.addEventListener("click", () => {
-      closeSetupPanel();
+    .getElementById(
+      "resetLeagueBtn"
+    )
+    ?.addEventListener(
+      "click",
+      resetLeague
+    );
 
-      document
-        .querySelector('[data-tab="leagueSection"]')
-        ?.click();
-
-      setTimeout(() => {
-        document
-          .getElementById("savedGameList")
-          ?.scrollIntoView({
-            behavior: "smooth",
-            block: "start"
-          });
-      }, 150);
-    });
-}
-
-function saveCurrentGameToHistory() {
-  const savedGames = getSavedGames();
-
-  const savedGame = createSavedGameData();
-
-  savedGames.unshift(savedGame);
-
-  if (savedGames.length > 30) {
-    savedGames.length = 30;
-  }
-
-  setSavedGames(savedGames);
-
-  addGameResultToLeague(savedGame);
-  addPlayersToSeason(savedGame);
-
-  saveLeagueState();
-  renderLeagueAll();
-
-  alert("현재 경기를 저장했어용.");
-}
-
-function loadSavedGame(gameId) {
-  const savedGames = getSavedGames();
-
-  const savedGame = savedGames.find(
-    game => game.id === gameId
-  );
-
-  if (!savedGame?.state) {
-    alert("저장된 경기 데이터를 찾지 못했어용.");
-    return;
-  }
-
-  const confirmed = confirm(
-    "현재 경기 기록을 저장된 경기로 교체할까용?"
-  );
-
-  if (!confirmed) {
-    return;
-  }
-
-  stopGameClock();
-
-  state = {
-    ...deepClone(defaultState),
-    ...deepClone(savedGame.state)
-  };
-
-  normalizeStateArrays();
-  initializePlayers();
-  updateCurrentPeriodLabel();
-
-  saveState();
-
-  fillSetupInputs();
-  renderSetupPlayerForms();
-  renderAll();
-
-  alert("저장된 경기를 불러왔어용.");
-}
-
-function deleteSavedGame(gameId) {
-  const confirmed = confirm(
-    "이 저장 경기를 삭제할까용?"
-  );
-
-  if (!confirmed) {
-    return;
-  }
-
-  const savedGames = getSavedGames().filter(
-    game => game.id !== gameId
-  );
-
-  setSavedGames(savedGames);
-  renderSavedGameList();
-}
-
-function renderSavedGameList() {
-  const container = document.getElementById(
-    "savedGameList"
-  );
-
-  if (!container) {
-    return;
-  }
-
-  const savedGames = getSavedGames();
-
-  if (savedGames.length === 0) {
-    container.innerHTML = `
-      <div class="empty-message">
-        저장된 경기가 없습니다.
-      </div>
-    `;
-
-    return;
-  }
-
-  container.innerHTML = savedGames
-    .map(game => {
-      return `
-        <div class="saved-game-row">
-          <div>
-            <strong>
-              ${escapeHtml(game.title || "농구 경기")}
-            </strong>
-
-            <span>
-              ${escapeHtml(game.teamAName)}
-              ${game.teamAScore}
-              :
-              ${game.teamBScore}
-              ${escapeHtml(game.teamBName)}
-              · ${formatDateTime(game.savedAt)}
-            </span>
-          </div>
-
-          <button
-            type="button"
-            data-load-saved-game="${game.id}"
-          >
-            불러오기
-          </button>
-
-          <button
-            type="button"
-            data-delete-saved-game="${game.id}"
-          >
-            삭제
-          </button>
-        </div>
-      `;
-    })
-    .join("");
-}
-
-function bindSavedGameListEvents() {
-  document.addEventListener("click", event => {
-    const loadGameId =
-      event.target.dataset.loadSavedGame;
-
-    const deleteGameId =
-      event.target.dataset.deleteSavedGame;
-
-    if (loadGameId) {
-      loadSavedGame(loadGameId);
-    }
-
-    if (deleteGameId) {
-      deleteSavedGame(deleteGameId);
-    }
-  });
-}
-
-/* =========================
-   리그 팀 관리
-========================= */
-
-function bindLeagueTeamControls() {
-  document
-    .getElementById("addLeagueTeamBtn")
-    ?.addEventListener("click", addLeagueTeam);
 
   document
-    .getElementById("resetLeagueBtn")
-    ?.addEventListener("click", resetLeagueData);
+    .getElementById(
+      "addScheduleBtn"
+    )
+    ?.addEventListener(
+      "click",
+      addSchedule
+    );
+
+
+  document
+    .getElementById(
+      "exportJsonBtn"
+    )
+    ?.addEventListener(
+      "click",
+      exportJSON
+    );
+
+
+  document
+    .getElementById(
+      "importJsonInput"
+    )
+    ?.addEventListener(
+      "change",
+      importJSON
+    );
+
+
+  document
+    .getElementById(
+      "exportCsvBtn"
+    )
+    ?.addEventListener(
+      "click",
+      exportCSV
+    );
+
 }
+
 
 function addLeagueTeam() {
-  const input = document.getElementById(
-    "leagueTeamNameInput"
-  );
 
-  const teamName = input?.value.trim() || "";
+  const input =
+    document.getElementById(
+      "leagueTeamNameInput"
+    );
 
-  if (!teamName) {
-    alert("추가할 팀 이름을 입력해주세용.");
+
+  const name =
+    input?.value.trim();
+
+
+  if (!name)
     return;
-  }
 
-  const alreadyExists = leagueState.teams.some(
-    team =>
-      team.name.toLowerCase() ===
-      teamName.toLowerCase()
-  );
 
-  if (alreadyExists) {
-    alert("이미 등록된 팀 이름이에용.");
-    return;
-  }
+  state.league.teams.push({
 
-  leagueState.teams.push({
-    id: createId("league-team"),
-    name: teamName,
+    id:
+      cryptoRandomId(),
+
+    name,
 
     games: 0,
     wins: 0,
     losses: 0,
-
     pointsFor: 0,
     pointsAgainst: 0
+
   });
+
 
   input.value = "";
 
-  saveLeagueState();
-  renderLeagueAll();
+  renderLeague();
+
 }
 
-function deleteLeagueTeam(teamId) {
-  const team = leagueState.teams.find(
-    item => item.id === teamId
-  );
 
-  if (!team) {
+function resetLeague() {
+
+  if (
+    !confirm(
+      "리그 데이터를 초기화할까요?"
+    )
+  ) {
+
     return;
+
   }
 
-  const confirmed = confirm(
-    `${team.name} 팀을 리그에서 삭제할까용?`
-  );
 
-  if (!confirmed) {
-    return;
-  }
+  state.league = {
 
-  leagueState.teams = leagueState.teams.filter(
-    item => item.id !== teamId
-  );
-
-  leagueState.schedule =
-    leagueState.schedule.filter(
-      game =>
-        game.teamAId !== teamId &&
-        game.teamBId !== teamId
-    );
-
-  leagueState.results =
-    leagueState.results.filter(
-      result =>
-        result.teamAId !== teamId &&
-        result.teamBId !== teamId
-    );
-
-  saveLeagueState();
-  renderLeagueAll();
-}
-
-function resetLeagueData() {
-  const confirmed = confirm(
-    "리그 팀, 일정, 순위, 시즌 기록을 모두 초기화할까용?"
-  );
-
-  if (!confirmed) {
-    return;
-  }
-
-  leagueState = {
     teams: [],
-    schedule: [],
-    results: [],
-    seasonPlayers: []
+    schedules: [],
+    results: []
+
   };
 
-  localStorage.removeItem(LEAGUE_KEY);
 
-  saveLeagueState();
-  renderLeagueAll();
+  renderLeague();
+
 }
 
-function renderLeagueTeamList() {
-  const container = document.getElementById(
-    "leagueTeamList"
-  );
 
-  if (!container) {
+function addSchedule() {
+
+  const a =
+    value(
+      "scheduleTeamASelect"
+    );
+
+
+  const b =
+    value(
+      "scheduleTeamBSelect"
+    );
+
+
+  if (
+    !a ||
+    !b ||
+    a === b
+  ) {
+
+    alert(
+      "서로 다른 두 팀을 선택해주세용."
+    );
+
     return;
+
   }
 
-  if (leagueState.teams.length === 0) {
-    container.innerHTML = `
-      <div class="empty-message">
-        등록된 리그 팀이 없습니다.
-      </div>
-    `;
 
-    return;
-  }
+  state.league.schedules.push({
 
-  container.innerHTML = leagueState.teams
-    .map(team => {
-      return `
-        <div class="league-team-row">
-          <strong>
-            ${escapeHtml(team.name)}
-          </strong>
+    id:
+      cryptoRandomId(),
 
-          <button
-            type="button"
-            data-delete-league-team="${team.id}"
-          >
-            삭제
-          </button>
-        </div>
-      `;
-    })
-    .join("");
-}
+    teamA:
+      a,
 
-function bindLeagueTeamListEvents() {
-  document.addEventListener("click", event => {
-    const teamId =
-      event.target.dataset.deleteLeagueTeam;
+    teamB:
+      b,
 
-    if (teamId) {
-      deleteLeagueTeam(teamId);
-    }
+    date:
+      value(
+        "scheduleDateInput"
+      ),
+
+    time:
+      value(
+        "scheduleTimeInput"
+      )
+
   });
+
+
+  renderLeague();
+
 }
 
-/* =========================
-   리그 순위표
-========================= */
 
-function getSortedLeagueTeams() {
-  return [...leagueState.teams].sort(
-    (a, b) => {
-      const winRateA =
-        a.games === 0
-          ? 0
-          : a.wins / a.games;
+function renderLeague() {
 
-      const winRateB =
-        b.games === 0
-          ? 0
-          : b.wins / b.games;
+  const list =
+    document.getElementById(
+      "leagueTeamList"
+    );
 
-      if (winRateB !== winRateA) {
-        return winRateB - winRateA;
-      }
 
-      const diffA =
-        a.pointsFor - a.pointsAgainst;
+  if (list) {
 
-      const diffB =
-        b.pointsFor - b.pointsAgainst;
+    list.innerHTML =
+      state.league.teams
+        .map(
+          team => `
 
-      if (diffB !== diffA) {
-        return diffB - diffA;
-      }
+            <div class="league-team-row">
 
-      return b.pointsFor - a.pointsFor;
-    }
-  );
-}
+              <strong>
+                ${escapeHTML(
+                  team.name
+                )}
+              </strong>
 
-function renderLeagueStandings() {
-  const tbody = document.getElementById(
-    "leagueStandingsBody"
-  );
+              <button
+                type="button"
+                data-remove-league="${team.id}"
+              >
+                ×
+              </button>
 
-  if (!tbody) {
-    return;
+            </div>
+
+          `
+        )
+        .join("")
+        ||
+        `
+          <div class="empty-message">
+            등록된 리그 팀이 없습니다.
+          </div>
+        `;
+
+
+    list
+      .querySelectorAll(
+        "[data-remove-league]"
+      )
+      .forEach(
+        button => {
+
+          button.addEventListener(
+            "click",
+            () => {
+
+              state.league.teams =
+                state.league.teams.filter(
+                  team =>
+                    team.id !==
+                    button.dataset
+                      .removeLeague
+                );
+
+              renderLeague();
+
+            }
+          );
+
+        }
+      );
+
   }
 
-  const teams = getSortedLeagueTeams();
 
-  if (teams.length === 0) {
-    tbody.innerHTML = `
+  renderLeagueSelectors();
+
+  renderStandings();
+
+  renderSchedules();
+
+}
+
+
+/* =========================================================
+   64. 리그 선택
+========================================================= */
+
+function renderLeagueSelectors() {
+
+  const selects = [
+
+    "scheduleTeamASelect",
+    "scheduleTeamBSelect"
+
+  ];
+
+
+  selects.forEach(
+    id => {
+
+      const select =
+        document.getElementById(
+          id
+        );
+
+
+      if (!select)
+        return;
+
+
+      select.innerHTML =
+        `<option value="">
+          팀 선택
+        </option>`;
+
+
+      state.league.teams
+        .forEach(
+          team => {
+
+            const option =
+              document.createElement(
+                "option"
+              );
+
+
+            option.value =
+              team.id;
+
+
+            option.textContent =
+              team.name;
+
+
+            select.appendChild(
+              option
+            );
+
+          }
+        );
+
+    }
+  );
+
+}
+
+
+/* =========================================================
+   65. 순위표
+========================================================= */
+
+function renderStandings() {
+
+  const body =
+    document.getElementById(
+      "leagueStandingsBody"
+    );
+
+
+  if (!body)
+    return;
+
+
+  const teams =
+    [...state.league.teams]
+      .sort(
+        (
+          a,
+          b
+        ) => {
+
+          const winDiff =
+            b.wins -
+            a.wins;
+
+
+          if (
+            winDiff !== 0
+          )
+            return winDiff;
+
+
+          return (
+            (
+              b.pointsFor -
+              b.pointsAgainst
+            ) -
+            (
+              a.pointsFor -
+              a.pointsAgainst
+            )
+          );
+
+        }
+      );
+
+
+  if (
+    teams.length === 0
+  ) {
+
+    body.innerHTML = `
       <tr>
-        <td colspan="9" class="empty-cell">
+        <td
+          colspan="9"
+          class="empty-cell"
+        >
           리그 결과가 없습니다.
         </td>
       </tr>
     `;
 
     return;
+
   }
 
-  tbody.innerHTML = teams
-    .map((team, index) => {
-      const difference =
-        team.pointsFor - team.pointsAgainst;
 
-      const winRate =
-        team.games === 0
-          ? 0
-          : Math.round(
-              (team.wins / team.games) * 100
-            );
+  body.innerHTML =
+    teams
+      .map(
+        (
+          team,
+          index
+        ) => {
 
-      return `
-        <tr>
-          <td>${index + 1}</td>
-          <td>${escapeHtml(team.name)}</td>
-          <td>${team.games}</td>
-          <td>${team.wins}</td>
-          <td>${team.losses}</td>
-          <td>${team.pointsFor}</td>
-          <td>${team.pointsAgainst}</td>
-          <td>${formatSignedNumber(difference)}</td>
-          <td>${winRate}%</td>
-        </tr>
-      `;
-    })
-    .join("");
+          const diff =
+            team.pointsFor -
+            team.pointsAgainst;
+
+
+          const winRate =
+            team.games
+              ? (
+                  team.wins /
+                  team.games *
+                  100
+                ).toFixed(1)
+              : "0.0";
+
+
+          return `
+
+            <tr>
+
+              <td>
+                ${index + 1}
+              </td>
+
+              <td>
+                ${escapeHTML(
+                  team.name
+                )}
+              </td>
+
+              <td>
+                ${team.games}
+              </td>
+
+              <td>
+                ${team.wins}
+              </td>
+
+              <td>
+                ${team.losses}
+              </td>
+
+              <td>
+                ${team.pointsFor}
+              </td>
+
+              <td>
+                ${team.pointsAgainst}
+              </td>
+
+              <td>
+                ${diff}
+              </td>
+
+              <td>
+                ${winRate}%
+              </td>
+
+            </tr>
+
+          `;
+
+        }
+      )
+      .join("");
+
 }
 
-/* =========================
-   경기 결과 리그 반영
-========================= */
 
-function getLeagueTeamByName(name) {
-  return leagueState.teams.find(
-    team =>
-      team.name.trim().toLowerCase() ===
-      String(name).trim().toLowerCase()
-  );
-}
+function renderSchedules() {
 
-function ensureLeagueTeamByName(name) {
-  let team = getLeagueTeamByName(name);
-
-  if (!team) {
-    team = {
-      id: createId("league-team"),
-      name,
-
-      games: 0,
-      wins: 0,
-      losses: 0,
-
-      pointsFor: 0,
-      pointsAgainst: 0
-    };
-
-    leagueState.teams.push(team);
-  }
-
-  return team;
-}
-
-function addGameResultToLeague(savedGame) {
-  const existingResult =
-    leagueState.results.find(
-      result =>
-        result.savedGameId === savedGame.id
+  const container =
+    document.getElementById(
+      "scheduleList"
     );
 
-  if (existingResult) {
+
+  if (!container)
     return;
-  }
 
-  const teamA = ensureLeagueTeamByName(
-    savedGame.teamAName
-  );
-
-  const teamB = ensureLeagueTeamByName(
-    savedGame.teamBName
-  );
-
-  teamA.games += 1;
-  teamB.games += 1;
-
-  teamA.pointsFor += savedGame.teamAScore;
-  teamA.pointsAgainst += savedGame.teamBScore;
-
-  teamB.pointsFor += savedGame.teamBScore;
-  teamB.pointsAgainst += savedGame.teamAScore;
 
   if (
-    savedGame.teamAScore >
-    savedGame.teamBScore
+    state.league.schedules.length === 0
   ) {
-    teamA.wins += 1;
-    teamB.losses += 1;
-  } else if (
-    savedGame.teamBScore >
-    savedGame.teamAScore
-  ) {
-    teamB.wins += 1;
-    teamA.losses += 1;
-  }
 
-  leagueState.results.push({
-    id: createId("league-result"),
-    savedGameId: savedGame.id,
-
-    teamAId: teamA.id,
-    teamBId: teamB.id,
-
-    teamAName: teamA.name,
-    teamBName: teamB.name,
-
-    teamAScore: savedGame.teamAScore,
-    teamBScore: savedGame.teamBScore,
-
-    playedAt:
-      savedGame.date || savedGame.savedAt
-  });
-}
-
-/* =========================
-   대진표·일정
-========================= */
-
-function bindScheduleControls() {
-  document
-    .getElementById("addScheduleBtn")
-    ?.addEventListener("click", addScheduleGame);
-}
-
-function renderScheduleTeamOptions() {
-  const selectIds = [
-    "scheduleTeamASelect",
-    "scheduleTeamBSelect"
-  ];
-
-  selectIds.forEach(selectId => {
-    const select = document.getElementById(
-      selectId
-    );
-
-    if (!select) {
-      return;
-    }
-
-    const previousValue = select.value;
-
-    select.innerHTML = `
-      <option value="">
-        팀 선택
-      </option>
-    `;
-
-    leagueState.teams.forEach(team => {
-      const option =
-        document.createElement("option");
-
-      option.value = team.id;
-      option.textContent = team.name;
-
-      select.appendChild(option);
-    });
-
-    if (
-      previousValue &&
-      leagueState.teams.some(
-        team => team.id === previousValue
-      )
-    ) {
-      select.value = previousValue;
-    }
-  });
-}
-
-function addScheduleGame() {
-  const teamAId =
-    document.getElementById(
-      "scheduleTeamASelect"
-    )?.value || "";
-
-  const teamBId =
-    document.getElementById(
-      "scheduleTeamBSelect"
-    )?.value || "";
-
-  const date =
-    document.getElementById(
-      "scheduleDateInput"
-    )?.value || "";
-
-  const time =
-    document.getElementById(
-      "scheduleTimeInput"
-    )?.value || "";
-
-  if (!teamAId || !teamBId) {
-    alert("대진에 들어갈 두 팀을 선택해주세용.");
-    return;
-  }
-
-  if (teamAId === teamBId) {
-    alert("서로 다른 두 팀을 선택해주세용.");
-    return;
-  }
-
-  const teamA = leagueState.teams.find(
-    team => team.id === teamAId
-  );
-
-  const teamB = leagueState.teams.find(
-    team => team.id === teamBId
-  );
-
-  if (!teamA || !teamB) {
-    return;
-  }
-
-  leagueState.schedule.push({
-    id: createId("schedule"),
-
-    teamAId,
-    teamBId,
-
-    teamAName: teamA.name,
-    teamBName: teamB.name,
-
-    date,
-    time,
-    status: "예정"
-  });
-
-  saveLeagueState();
-  renderScheduleList();
-}
-
-function deleteScheduleGame(scheduleId) {
-  leagueState.schedule =
-    leagueState.schedule.filter(
-      game => game.id !== scheduleId
-    );
-
-  saveLeagueState();
-  renderScheduleList();
-}
-
-function renderScheduleList() {
-  const container = document.getElementById(
-    "scheduleList"
-  );
-
-  if (!container) {
-    return;
-  }
-
-  if (leagueState.schedule.length === 0) {
     container.innerHTML = `
       <div class="empty-message">
         등록된 경기 일정이 없습니다.
@@ -6403,567 +5859,1047 @@ function renderScheduleList() {
     `;
 
     return;
+
   }
 
-  const schedule = [...leagueState.schedule].sort(
-    (a, b) => {
-      const aText = `${a.date || "9999"} ${
-        a.time || "23:59"
-      }`;
 
-      const bText = `${b.date || "9999"} ${
-        b.time || "23:59"
-      }`;
+  container.innerHTML =
+    state.league.schedules
+      .map(
+        schedule => {
 
-      return aText.localeCompare(bText);
-    }
-  );
+          const teamA =
+            state.league.teams
+              .find(
+                t =>
+                  t.id ===
+                  schedule.teamA
+              );
 
-  container.innerHTML = schedule
-    .map(game => {
-      return `
-        <div class="schedule-row">
-          <time>
-            ${escapeHtml(game.date || "날짜 미정")}
-            ${escapeHtml(game.time || "")}
-          </time>
 
-          <strong>
-            ${escapeHtml(game.teamAName)}
-            VS
-            ${escapeHtml(game.teamBName)}
-          </strong>
+          const teamB =
+            state.league.teams
+              .find(
+                t =>
+                  t.id ===
+                  schedule.teamB
+              );
 
-          <span>
-            ${escapeHtml(game.status)}
-          </span>
 
-          <button
-            type="button"
-            data-delete-schedule="${game.id}"
-          >
-            삭제
-          </button>
-        </div>
-      `;
-    })
-    .join("");
-}
+          return `
 
-function bindScheduleListEvents() {
-  document.addEventListener("click", event => {
-    const scheduleId =
-      event.target.dataset.deleteSchedule;
+            <div class="schedule-row">
 
-    if (scheduleId) {
-      deleteScheduleGame(scheduleId);
-    }
-  });
-}
+              <time>
+                ${schedule.date || "-"}
+              </time>
 
-/* =========================
-   시즌 선수 기록
-========================= */
+              <strong>
+                ${
+                  teamA?.name ||
+                  "-"
+                }
+                vs
+                ${
+                  teamB?.name ||
+                  "-"
+                }
+              </strong>
 
-function getSeasonPlayerKey(player, savedGame) {
-  return [
-    player.name.trim().toLowerCase(),
-    getTeamNameFromSavedGame(
-      player.team,
-      savedGame
+              <span>
+                ${schedule.time || ""}
+              </span>
+
+              <button
+                type="button"
+                data-remove-schedule="${schedule.id}"
+              >
+                삭제
+              </button>
+
+            </div>
+
+          `;
+
+        }
+      )
+      .join("");
+
+
+  container
+    .querySelectorAll(
+      "[data-remove-schedule]"
     )
-      .trim()
-      .toLowerCase()
-  ].join("|");
-}
+    .forEach(
+      button => {
 
-function getTeamNameFromSavedGame(
-  team,
-  savedGame
-) {
-  return team === "A"
-    ? savedGame.teamAName
-    : savedGame.teamBName;
-}
+        button.addEventListener(
+          "click",
+          () => {
 
-function addPlayersToSeason(savedGame) {
-  const players =
-    savedGame.state?.players || [];
+            state.league.schedules =
+              state.league.schedules
+                .filter(
+                  schedule =>
+                    schedule.id !==
+                    button.dataset
+                      .removeSchedule
+                );
 
-  players.forEach(player => {
-    const key = getSeasonPlayerKey(
-      player,
-      savedGame
+            renderSchedules();
+
+          }
+        );
+
+      }
     );
 
-    let seasonPlayer =
-      leagueState.seasonPlayers.find(
-        item => item.key === key
-      );
+}
 
-    if (!seasonPlayer) {
-      seasonPlayer = {
-        id: createId("season-player"),
-        key,
 
-        name: player.name,
-        number: player.number,
+/* =========================================================
+   66. 경기 저장
+========================================================= */
 
-        teamName:
-          getTeamNameFromSavedGame(
-            player.team,
-            savedGame
-          ),
+function saveGame() {
 
-        games: 0,
+  const snapshot =
+    JSON.parse(
+      JSON.stringify(
+        state
+      )
+    );
 
-        pts: 0,
-        reb: 0,
-        ast: 0,
-        stl: 0,
-        blk: 0,
-        to: 0,
 
-        mvpScore: 0
-      };
+  state.savedGames.push({
 
-      leagueState.seasonPlayers.push(
-        seasonPlayer
-      );
-    }
+    id:
+      cryptoRandomId(),
 
-    seasonPlayer.games += 1;
+    createdAt:
+      Date.now(),
 
-    seasonPlayer.pts += player.pts || 0;
-    seasonPlayer.reb += player.reb || 0;
-    seasonPlayer.ast += player.ast || 0;
-    seasonPlayer.stl += player.stl || 0;
-    seasonPlayer.blk += player.blk || 0;
-    seasonPlayer.to += player.to || 0;
+    snapshot
 
-    seasonPlayer.mvpScore +=
-      calculateMvpScore(player);
   });
-}
 
-function getSeasonLeader(key) {
-  if (
-    leagueState.seasonPlayers.length === 0
-  ) {
-    return null;
-  }
 
-  return [...leagueState.seasonPlayers].sort(
-    (a, b) => (b[key] || 0) - (a[key] || 0)
-  )[0];
-}
-
-function renderSeasonLeaders() {
-  const pointsLeader =
-    getSeasonLeader("pts");
-
-  const reboundLeader =
-    getSeasonLeader("reb");
-
-  const assistLeader =
-    getSeasonLeader("ast");
-
-  const defenseLeader =
-    [...leagueState.seasonPlayers].sort(
-      (a, b) =>
-        b.stl +
-          b.blk -
-        (a.stl + a.blk)
-    )[0] || null;
-
-  const mvpLeader =
-    getSeasonLeader("mvpScore");
-
-  setSeasonLeaderText(
-    "seasonPointsLeader",
-    pointsLeader,
-    "pts",
-    "점"
+  localStorage.setItem(
+    "courtvision_saved_games",
+    JSON.stringify(
+      state.savedGames
+    )
   );
 
-  setSeasonLeaderText(
-    "seasonReboundLeader",
-    reboundLeader,
-    "reb",
-    "개"
+
+  alert(
+    "경기가 저장됐어용."
   );
 
-  setSeasonLeaderText(
-    "seasonAssistLeader",
-    assistLeader,
-    "ast",
-    "개"
-  );
 
-  if (defenseLeader) {
-    document.getElementById(
-      "seasonDefenseLeader"
-    ).textContent =
-      `${defenseLeader.name} · ${
-        defenseLeader.stl +
-        defenseLeader.blk
-      }개`;
-  } else {
-    document.getElementById(
-      "seasonDefenseLeader"
-    ).textContent = "기록 없음";
-  }
+  renderSavedGames();
 
-  if (mvpLeader) {
-    document.getElementById(
-      "seasonMvpLeader"
-    ).textContent =
-      `${mvpLeader.name} · ${mvpLeader.mvpScore.toFixed(
-        1
-      )}`;
-  } else {
-    document.getElementById(
-      "seasonMvpLeader"
-    ).textContent = "기록 없음";
-  }
 }
 
-function setSeasonLeaderText(
-  elementId,
-  player,
-  key,
-  suffix
+
+/* =========================================================
+   67. 저장 경기 불러오기
+========================================================= */
+
+function loadSavedGame() {
+
+  const saved =
+    state.savedGames[
+      state.savedGames.length - 1
+    ];
+
+
+  if (!saved) {
+
+    alert(
+      "저장된 경기가 없습니다."
+    );
+
+    return;
+
+  }
+
+
+  restoreFullState(
+    saved.snapshot
+  );
+
+
+  renderAll();
+
+}
+
+
+function restoreFullState(
+  snapshot
 ) {
-  const element = document.getElementById(
-    elementId
-  );
 
-  if (!element) {
-    return;
-  }
+  Object.keys(
+    state
+  )
+    .forEach(
+      key => {
 
-  if (!player) {
-    element.textContent = "기록 없음";
-    return;
-  }
+        if (
+          key === "savedGames"
+        )
+          return;
 
-  element.textContent =
-    `${player.name} · ${player[key]}${suffix}`;
+
+        if (
+          snapshot[key] !==
+          undefined
+        ) {
+
+          state[key] =
+            snapshot[key];
+
+        }
+
+      }
+    );
+
 }
 
-/* =========================
-   CSV 내보내기
-========================= */
 
-function bindCsvExport() {
-  document
-    .getElementById("exportCsvBtn")
-    ?.addEventListener("click", exportCurrentGameCsv);
-}
+/* =========================================================
+   68. 저장 경기 목록
+========================================================= */
 
-function escapeCsvValue(value) {
-  const text = String(value ?? "");
+function renderSavedGames() {
+
+  const container =
+    document.getElementById(
+      "savedGameList"
+    );
+
+
+  if (!container)
+    return;
+
 
   if (
-    text.includes(",") ||
-    text.includes('"') ||
-    text.includes("\n")
+    state.savedGames.length === 0
   ) {
-    return `"${text.replaceAll('"', '""')}"`;
+
+    container.innerHTML = `
+      <div class="empty-message">
+        저장된 경기가 없습니다.
+      </div>
+    `;
+
+    return;
+
   }
 
-  return text;
+
+  container.innerHTML =
+    state.savedGames
+      .slice()
+      .reverse()
+      .map(
+        saved => `
+
+          <div class="saved-game-row">
+
+            <div>
+
+              <strong>
+                ${
+                  saved.snapshot
+                    ?.game
+                    ?.title ||
+                  "농구 경기"
+                }
+              </strong>
+
+              <span>
+                ${new Date(
+                  saved.createdAt
+                ).toLocaleString(
+                  "ko-KR"
+                )}
+              </span>
+
+            </div>
+
+            <button
+              type="button"
+              data-load-saved="${saved.id}"
+            >
+              불러오기
+            </button>
+
+            <button
+              type="button"
+              data-delete-saved="${saved.id}"
+            >
+              삭제
+            </button>
+
+          </div>
+
+        `
+      )
+      .join("");
+
+
+  container
+    .querySelectorAll(
+      "[data-load-saved]"
+    )
+    .forEach(
+      button => {
+
+        button.addEventListener(
+          "click",
+          () => {
+
+            const saved =
+              state.savedGames
+                .find(
+                  item =>
+                    item.id ===
+                    button.dataset
+                      .loadSaved
+                );
+
+
+            if (
+              saved
+            ) {
+
+              restoreFullState(
+                saved.snapshot
+              );
+
+              renderAll();
+
+            }
+
+          }
+        );
+
+      }
+    );
+
+
+  container
+    .querySelectorAll(
+      "[data-delete-saved]"
+    )
+    .forEach(
+      button => {
+
+        button.addEventListener(
+          "click",
+          () => {
+
+            state.savedGames =
+              state.savedGames
+                .filter(
+                  item =>
+                    item.id !==
+                    button.dataset
+                      .deleteSaved
+                );
+
+
+            localStorage.setItem(
+              "courtvision_saved_games",
+              JSON.stringify(
+                state.savedGames
+              )
+            );
+
+
+            renderSavedGames();
+
+          }
+        );
+
+      }
+    );
+
 }
 
-function exportCurrentGameCsv() {
-  updatePlayerImpactScores();
 
-  const rows = [
-    [
-      "팀",
-      "등번호",
-      "선수",
-      "출전시간",
-      "득점",
-      "리바운드",
-      "어시스트",
-      "스틸",
-      "블록",
-      "턴오버",
-      "파울",
-      "야투성공",
-      "야투시도",
-      "야투율",
-      "플러스마이너스",
-      "공격기여도",
-      "수비기여도"
-    ]
+/* =========================================================
+   69. JSON
+========================================================= */
+
+function exportJSON() {
+
+  const data =
+    JSON.stringify(
+      state,
+      null,
+      2
+    );
+
+
+  downloadFile(
+    data,
+    "courtvision-game.json",
+    "application/json"
+  );
+
+}
+
+
+function importJSON(
+  event
+) {
+
+  const file =
+    event.target.files?.[0];
+
+
+  if (!file)
+    return;
+
+
+  const reader =
+    new FileReader();
+
+
+  reader.onload =
+    () => {
+
+      try {
+
+        const imported =
+          JSON.parse(
+            reader.result
+          );
+
+
+        restoreFullState(
+          imported
+        );
+
+
+        renderAll();
+
+
+        alert(
+          "JSON을 불러왔어용."
+        );
+
+      }
+
+      catch {
+
+        alert(
+          "JSON 파일을 읽을 수 없어용."
+        );
+
+      }
+
+    };
+
+
+  reader.readAsText(
+    file
+  );
+
+}
+
+
+/* =========================================================
+   70. CSV
+========================================================= */
+
+function exportCSV() {
+
+  const header = [
+
+    "팀",
+    "번호",
+    "선수",
+    "MIN",
+    "PTS",
+    "REB",
+    "AST",
+    "STL",
+    "BLK",
+    "TO",
+    "PF",
+    "FG",
+    "FGA",
+    "FG%",
+    "+/-"
+
   ];
 
-  state.players.forEach(player => {
-    const fieldGoalPercentage =
-      calculateFieldGoalPercentage(player);
 
-    rows.push([
-      getTeamName(player.team),
-      player.number,
-      player.name,
-      formatTime(player.courtSeconds),
-      player.pts,
-      player.reb,
-      player.ast,
-      player.stl,
-      player.blk,
-      player.to,
-      player.pf,
-      player.fgm,
-      player.fga,
-      `${fieldGoalPercentage}%`,
-      player.plusMinus,
-      player.offenseScore.toFixed(1),
-      player.defenseScore.toFixed(1)
-    ]);
-  });
+  const rows =
+    getAllPlayers()
+      .map(
+        player => {
 
-  const csvContent =
-    "\uFEFF" +
-    rows
-      .map(row =>
-        row.map(escapeCsvValue).join(",")
+          const s =
+            player.stats;
+
+
+          return [
+
+            player.team,
+
+            player.number,
+
+            player.name,
+
+            formatSeconds(
+              player.secondsPlayed
+            ),
+
+            s.pts,
+
+            s.reb,
+
+            s.ast,
+
+            s.stl,
+
+            s.blk,
+
+            s.to,
+
+            s.pf,
+
+            s.fg,
+
+            s.fga,
+
+            s.fga
+              ? (
+                  s.fg /
+                  s.fga *
+                  100
+                ).toFixed(1)
+              : "0.0",
+
+            s.plusMinus
+
+          ];
+
+        }
+      );
+
+
+  const csv =
+    [
+      header,
+      ...rows
+    ]
+      .map(
+        row =>
+          row
+            .map(
+              cell =>
+                `"${String(
+                  cell
+                ).replace(
+                  /"/g,
+                  '""'
+                )}"`
+            )
+            .join(",")
       )
       .join("\n");
 
-  downloadTextFile(
-    `${sanitizeFileName(
-      state.gameTitle
-    )}_기록.csv`,
-    csvContent,
+
+  downloadFile(
+    "\uFEFF" + csv,
+    "courtvision-stats.csv",
     "text/csv;charset=utf-8"
   );
+
 }
 
-/* =========================
-   JSON 내보내기·불러오기
-========================= */
 
-function bindJsonControls() {
+/* =========================================================
+   71. 탭
+========================================================= */
+
+function openTab(
+  tabId
+) {
+
   document
-    .getElementById("exportJsonBtn")
-    ?.addEventListener("click", exportAllJson);
+    .querySelectorAll(
+      ".tab-section"
+    )
+    .forEach(
+      section => {
+
+        section.classList.toggle(
+          "active",
+          section.id ===
+          tabId
+        );
+
+      }
+    );
+
 
   document
-    .getElementById("importJsonInput")
-    ?.addEventListener("change", importJsonFile);
-}
+    .querySelectorAll(
+      ".nav-btn"
+    )
+    .forEach(
+      button => {
 
-function exportAllJson() {
-  const exportData = {
-    exportedAt: Date.now(),
-    version: 1,
+        button.classList.toggle(
+          "active",
+          button.dataset.tab ===
+          tabId
+        );
 
-    currentGame: state,
-    savedGames: getSavedGames(),
-    league: leagueState
-  };
+      }
+    );
 
-  const json = JSON.stringify(
-    exportData,
-    null,
-    2
-  );
 
-  downloadTextFile(
-    `courtvision_backup_${Date.now()}.json`,
-    json,
-    "application/json;charset=utf-8"
-  );
-}
+  if (
+    tabId ===
+    "shotchartSection"
+  ) {
 
-function importJsonFile(event) {
-  const file = event.target.files?.[0];
+    setTimeout(
+      renderShotChart,
+      50
+    );
 
-  if (!file) {
-    return;
   }
 
-  const reader = new FileReader();
-
-  reader.onload = () => {
-    try {
-      const parsed = JSON.parse(
-        String(reader.result)
-      );
-
-      const confirmed = confirm(
-        "JSON 데이터를 불러오면 현재 데이터가 교체될 수 있어용. 계속할까용?"
-      );
-
-      if (!confirmed) {
-        event.target.value = "";
-        return;
-      }
-
-      if (parsed.currentGame) {
-        state = {
-          ...deepClone(defaultState),
-          ...parsed.currentGame
-        };
-
-        normalizeStateArrays();
-        initializePlayers();
-        updateCurrentPeriodLabel();
-
-        saveState();
-      }
-
-      if (Array.isArray(parsed.savedGames)) {
-        setSavedGames(parsed.savedGames);
-      }
-
-      if (parsed.league) {
-        leagueState = {
-          teams: [],
-          schedule: [],
-          results: [],
-          seasonPlayers: [],
-          ...parsed.league
-        };
-
-        saveLeagueState();
-      }
-
-      fillSetupInputs();
-      renderSetupPlayerForms();
-      renderAll();
-
-      alert("JSON 데이터를 불러왔어용.");
-    } catch (error) {
-      console.error(error);
-      alert("JSON 파일을 읽지 못했어용.");
-    } finally {
-      event.target.value = "";
-    }
-  };
-
-  reader.onerror = () => {
-    alert("파일을 읽는 중 오류가 발생했어용.");
-    event.target.value = "";
-  };
-
-  reader.readAsText(file);
 }
 
-function sanitizeFileName(name) {
-  return String(name || "courtvision")
-    .replace(/[\\/:*?"<>|]/g, "_")
-    .trim();
+
+/* =========================================================
+   72. 기타 계산
+========================================================= */
+
+function getAllPlayers() {
+
+  return [
+
+    ...state.teams.A.players,
+
+    ...state.teams.B.players
+
+  ];
+
 }
 
-function downloadTextFile(
-  fileName,
-  content,
-  mimeType
+
+function teamStat(
+  team,
+  key
 ) {
-  const blob = new Blob(
-    [content],
-    {
-      type: mimeType
-    }
+
+  return state.teams[
+    team
+  ].players
+    .reduce(
+      (
+        total,
+        player
+      ) =>
+        total +
+        (
+          Number(
+            player.stats[key]
+          ) || 0
+        ),
+      0
+    );
+
+}
+
+
+function offensiveScore(
+  player
+) {
+
+  const s =
+    player.stats;
+
+
+  return (
+    s.pts +
+    s.ast * 1.5 +
+    s.reb * 0.5 -
+    s.to
   );
 
-  const url = URL.createObjectURL(blob);
-
-  const anchor =
-    document.createElement("a");
-
-  anchor.href = url;
-  anchor.download = fileName;
-
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-
-  setTimeout(() => {
-    URL.revokeObjectURL(url);
-  }, 1000);
 }
 
-/* =========================
-   리그 전체 렌더링
-========================= */
 
-function renderLeagueAll() {
-  renderLeagueTeamList();
-  renderLeagueStandings();
-  renderScheduleTeamOptions();
-  renderScheduleList();
-  renderSeasonLeaders();
-  renderSavedGameList();
-}
+function defensiveScore(
+  player
+) {
 
-/* =========================
-   전체 렌더링
-========================= */
+  const s =
+    player.stats;
 
-function renderAll() {
-  updateCurrentPeriodLabel();
-  updatePlayerImpactScores();
 
-  updateModeButtons();
-
-  renderLivePartTwo();
-  renderRecordAndAnalysisPartThree();
-  renderShotAndVideoPartFour();
-
-  renderLeagueAll();
-
-  saveState();
-}
-
-/* =========================
-   페이지 종료 전 저장
-========================= */
-
-function bindAutoSave() {
-  window.addEventListener(
-    "beforeunload",
-    () => {
-      saveState();
-      saveLeagueState();
-    }
+  return (
+    s.reb * 0.7 +
+    s.stl * 2 +
+    s.blk * 2 +
+    s.def
   );
 
-  document.addEventListener(
-    "visibilitychange",
-    () => {
-      if (document.hidden) {
-        saveState();
-        saveLeagueState();
+}
+
+
+/* =========================================================
+   73. 최근 기록 삭제
+========================================================= */
+
+function clearRecentLogs() {
+
+  state.actions = [];
+
+  renderRecentLogs();
+
+}
+
+
+/* =========================================================
+   74. 저장 데이터 복원
+========================================================= */
+
+(function loadLocalGames() {
+
+  try {
+
+    const saved =
+      localStorage.getItem(
+        "courtvision_saved_games"
+      );
+
+
+    if (saved) {
+
+      state.savedGames =
+        JSON.parse(
+          saved
+        );
+
+    }
+
+  }
+
+  catch {
+
+    state.savedGames =
+      [];
+
+  }
+
+})();
+
+
+/* =========================================================
+   75. 저장 목록 초기 렌더
+========================================================= */
+
+function renderSavedGamesSafe() {
+
+  renderSavedGames();
+
+}
+
+
+/* =========================================================
+   76. 유틸
+========================================================= */
+
+function value(
+  id
+) {
+
+  return (
+    document.getElementById(
+      id
+    )?.value || ""
+  );
+
+}
+
+
+function setValue(
+  id,
+  value
+) {
+
+  const element =
+    document.getElementById(
+      id
+    );
+
+
+  if (element) {
+
+    element.value =
+      value ?? "";
+
+  }
+
+}
+
+
+function numberValue(
+  id,
+  fallback
+) {
+
+  const number =
+    Number(
+      value(id)
+    );
+
+
+  return Number.isFinite(
+    number
+  )
+    ? number
+    : fallback;
+
+}
+
+
+function setText(
+  id,
+  text
+) {
+
+  const element =
+    document.getElementById(
+      id
+    );
+
+
+  if (element) {
+
+    element.textContent =
+      text ?? "";
+
+  }
+
+}
+
+
+function capitalize(
+  value
+) {
+
+  return value.charAt(0)
+    .toUpperCase() +
+    value.slice(1);
+
+}
+
+
+function formatClock(
+  seconds
+) {
+
+  seconds =
+    Math.max(
+      0,
+      Number(seconds) || 0
+    );
+
+
+  const minutes =
+    Math.floor(
+      seconds / 60
+    );
+
+
+  const secs =
+    seconds % 60;
+
+
+  return `${String(
+    minutes
+  ).padStart(
+    2,
+    "0"
+  )}:${String(
+    secs
+  ).padStart(
+    2,
+    "0"
+  )}`;
+
+}
+
+
+function formatSeconds(
+  seconds
+) {
+
+  seconds =
+    Math.max(
+      0,
+      Number(seconds) || 0
+    );
+
+
+  const minutes =
+    Math.floor(
+      seconds / 60
+    );
+
+
+  const secs =
+    Math.floor(
+      seconds % 60
+    );
+
+
+  return `${String(
+    minutes
+  ).padStart(
+    2,
+    "0"
+  )}:${String(
+    secs
+  ).padStart(
+    2,
+    "0"
+  )}`;
+
+}
+
+
+function formatVideoTime(
+  seconds
+) {
+
+  return formatSeconds(
+    seconds
+  );
+
+}
+
+
+function cryptoRandomId() {
+
+  if (
+    window.crypto &&
+    crypto.randomUUID
+  ) {
+
+    return crypto.randomUUID();
+
+  }
+
+
+  return (
+    Date.now()
+      .toString(36) +
+    Math.random()
+      .toString(36)
+      .slice(2)
+  );
+
+}
+
+
+function escapeHTML(
+  value
+) {
+
+  return String(
+    value ?? ""
+  )
+    .replace(
+      /&/g,
+      "&amp;"
+    )
+    .replace(
+      /</g,
+      "&lt;"
+    )
+    .replace(
+      />/g,
+      "&gt;"
+    )
+    .replace(
+      /"/g,
+      "&quot;"
+    )
+    .replace(
+      /'/g,
+      "&#039;"
+    );
+
+}
+
+
+function downloadFile(
+  content,
+  filename,
+  type
+) {
+
+  const blob =
+    new Blob(
+      [content],
+      {
+        type
       }
-    }
+    );
+
+
+  const url =
+    URL.createObjectURL(
+      blob
+    );
+
+
+  const link =
+    document.createElement(
+      "a"
+    );
+
+
+  link.href =
+    url;
+
+
+  link.download =
+    filename;
+
+
+  document.body.appendChild(
+    link
   );
+
+
+  link.click();
+
+
+  link.remove();
+
+
+  URL.revokeObjectURL(
+    url
+  );
+
 }
 
-/* =========================
-   6부 이벤트 연결
-========================= */
 
-function initializeAppPartSix() {
-  bindGameSaveButtons();
-  bindSavedGameListEvents();
-
-  bindLeagueTeamControls();
-  bindLeagueTeamListEvents();
-
-  bindScheduleControls();
-  bindScheduleListEvents();
-
-  bindCsvExport();
-  bindJsonControls();
-
-  bindAutoSave();
-
-  renderAll();
-}
-
-initializeAppPartSix();
+/* =========================================================
+   END
+========================================================= */
