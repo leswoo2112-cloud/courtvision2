@@ -15,39 +15,31 @@
   --gold: #f6ba3f;
   --purple: #9c7cff;
 
-  --blue-soft: rgba(47, 147, 255, 0.15);
-  --red-soft: rgba(255, 76, 85, 0.14);
-  --green-soft: rgba(43, 209, 132, 0.13);
-  --gold-soft: rgba(246, 186, 63, 0.13);
-  --purple-soft: rgba(156, 124, 255, 0.13);
+  --blue-soft: rgba(47,147,255,.15);
+  --red-soft: rgba(255,76,85,.14);
+  --green-soft: rgba(43,209,132,.13);
+  --gold-soft: rgba(246,186,63,.13);
+  --purple-soft: rgba(156,124,255,.13);
 
   --radius: 15px;
-  --shadow: 0 18px 45px rgba(0, 0, 0, 0.28);
+  --shadow: 0 18px 45px rgba(0,0,0,.28);
 }
-
-/* =========================================================
-   RESET
-========================================================= */
 
 * {
   box-sizing: border-box;
   -webkit-tap-highlight-color: transparent;
 }
 
-html {
+html,
+body {
+  margin: 0;
+  min-width: 320px;
   min-height: 100%;
-  background: var(--bg);
-  scroll-behavior: smooth;
 }
 
 body {
-  min-width: 320px;
-  min-height: 100vh;
-  margin: 0;
   overflow-x: hidden;
-
   color: var(--text);
-
   font-family:
     -apple-system,
     BlinkMacSystemFont,
@@ -59,50 +51,15 @@ body {
   background:
     radial-gradient(
       circle at 5% 0%,
-      rgba(47, 147, 255, 0.13),
+      rgba(47,147,255,.13),
       transparent 28%
     ),
     radial-gradient(
       circle at 100% 15%,
-      rgba(255, 76, 85, 0.1),
+      rgba(255,76,85,.10),
       transparent 27%
     ),
-    radial-gradient(
-      circle at 50% 100%,
-      rgba(156, 124, 255, 0.045),
-      transparent 35%
-    ),
     var(--bg);
-}
-
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-
-  pointer-events: none;
-
-  background:
-    linear-gradient(
-      rgba(255,255,255,0.012) 1px,
-      transparent 1px
-    ),
-    linear-gradient(
-      90deg,
-      rgba(255,255,255,0.012) 1px,
-      transparent 1px
-    );
-
-  background-size: 40px 40px;
-
-  mask-image:
-    linear-gradient(
-      to bottom,
-      black,
-      transparent 80%
-    );
-
-  z-index: -1;
 }
 
 button,
@@ -119,31 +76,23 @@ button {
 }
 
 button:active {
-  transform: scale(0.98);
+  transform: scale(.98);
 }
 
 button:disabled {
+  opacity: .45;
   cursor: not-allowed;
-  opacity: 0.45;
 }
 
 input,
 select,
 textarea {
   width: 100%;
-
-  border: 1px solid var(--line);
-  border-radius: 10px;
-
-  outline: none;
-
   color: var(--text);
   background: #08121b;
-
-  transition:
-    border-color .18s ease,
-    box-shadow .18s ease,
-    background .18s ease;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  outline: none;
 }
 
 input,
@@ -153,7 +102,6 @@ select {
 }
 
 textarea {
-  min-height: 90px;
   padding: 12px 13px;
   resize: vertical;
 }
@@ -162,14 +110,7 @@ input:focus,
 select:focus,
 textarea:focus {
   border-color: var(--blue);
-
-  box-shadow:
-    0 0 0 3px rgba(47, 147, 255, 0.12);
-}
-
-input::placeholder,
-textarea::placeholder {
-  color: #566572;
+  box-shadow: 0 0 0 3px rgba(47,147,255,.12);
 }
 
 option {
@@ -185,25 +126,21 @@ p {
   margin-top: 0;
 }
 
-h1,
-h2,
-h3,
-h4 {
-  letter-spacing: -0.3px;
-}
-
 .hidden {
   display: none !important;
 }
+
+/* =====================================================
+   APP
+===================================================== */
 
 .app-shell {
   min-height: 100vh;
 }
 
-
-/* =========================================================
-   COMMON BUTTONS
-========================================================= */
+/* =====================================================
+   BUTTONS
+===================================================== */
 
 .primary-btn,
 .secondary-btn,
@@ -215,81 +152,49 @@ h4 {
 .small-add-btn {
   border-radius: 9px;
   font-weight: 800;
-  transition:
-    transform .15s ease,
-    border-color .15s ease,
-    background .15s ease,
-    box-shadow .15s ease;
 }
 
 .primary-btn {
   min-height: 45px;
   padding: 0 18px;
-
   border: 0;
-
-  color: white;
-
-  background:
-    linear-gradient(
-      135deg,
-      #1678ef,
-      #42a1ff
-    );
-
+  color: #fff;
+  background: linear-gradient(
+    135deg,
+    #1678ef,
+    #42a1ff
+  );
   box-shadow:
-    0 10px 25px rgba(47, 147, 255, 0.18);
-}
-
-.primary-btn:hover {
-  box-shadow:
-    0 12px 30px rgba(47, 147, 255, 0.28);
+    0 10px 25px rgba(47,147,255,.18);
 }
 
 .secondary-btn {
   min-height: 43px;
   padding: 0 15px;
-
   border: 1px solid var(--line);
-
   background: var(--panel-2);
-}
-
-.secondary-btn:hover,
-.outline-btn:hover,
-.icon-btn:hover {
-  border-color: #3a5265;
-  background: var(--panel-3);
 }
 
 .danger-btn {
   min-height: 43px;
   padding: 0 16px;
-
   border: 1px solid #9e3038;
-
   color: #ff9a9f;
-
-  background: rgba(255, 76, 85, 0.13);
+  background: rgba(255,76,85,.13);
 }
 
 .danger-outline-btn {
   min-height: 45px;
   padding: 0 16px;
-
   border: 1px solid var(--red);
-
   color: #ff9ca1;
-
-  background: rgba(255, 76, 85, 0.08);
+  background: rgba(255,76,85,.08);
 }
 
 .outline-btn {
   min-height: 40px;
   padding: 0 14px;
-
   border: 1px solid var(--line);
-
   background: transparent;
 }
 
@@ -299,27 +204,18 @@ h4 {
   background: transparent;
 }
 
-.text-btn:hover {
-  color: white;
-}
-
 .icon-btn {
   width: 38px;
   height: 38px;
-
   border: 1px solid var(--line);
-
   background: var(--panel-2);
 }
 
 .small-add-btn {
   min-height: 36px;
   padding: 0 12px;
-
-  border: 1px solid rgba(47, 147, 255, 0.45);
-
+  border: 1px solid rgba(47,147,255,.45);
   color: #9bccff;
-
   background: var(--blue-soft);
 }
 
@@ -327,35 +223,29 @@ h4 {
   width: 100%;
 }
 
-
-/* =========================================================
+/* =====================================================
    TOPBAR
-========================================================= */
+===================================================== */
 
 .topbar {
   position: sticky;
   top: 0;
-
   z-index: 100;
 
   display: grid;
-
   grid-template-columns:
     275px
-    minmax(620px, 1fr)
+    minmax(620px,1fr)
     310px;
 
   align-items: center;
 
   min-height: 76px;
-
   padding: 0 18px;
 
   border-bottom: 1px solid var(--line);
 
-  background:
-    rgba(3, 7, 12, 0.96);
-
+  background: rgba(3,7,12,.96);
   backdrop-filter: blur(18px);
 }
 
@@ -363,135 +253,75 @@ h4 {
   display: flex;
   align-items: center;
   gap: 11px;
-
-  min-width: 0;
 }
 
 .brand-logo {
-  display: grid;
-
-  width: 40px;
-  height: 40px;
-
-  place-items: center;
-
-  font-size: 25px;
-
-  border-radius: 11px;
-
-  background:
-    linear-gradient(
-      145deg,
-      rgba(47,147,255,.2),
-      rgba(255,76,85,.1)
-    );
-
-  border: 1px solid var(--line);
-
-  box-shadow:
-    inset 0 0 20px rgba(47,147,255,.06);
+  font-size: 30px;
 }
 
 .brand h1 {
   margin: 0;
-
   font-size: 23px;
   font-style: italic;
-
   letter-spacing: 1px;
-
-  white-space: nowrap;
 }
 
 .brand p {
   margin: 2px 0 0;
-
   color: var(--muted);
-
   font-size: 8px;
-
   letter-spacing: 1.8px;
 }
 
 .topbar-center {
   display: flex;
-
   min-width: 0;
-
   align-items: center;
   justify-content: center;
-
   gap: 15px;
 }
 
 .mode-switch {
   display: flex;
-
   flex: 0 0 auto;
-
   padding: 4px;
-
   border: 1px solid var(--line);
   border-radius: 10px;
-
   background: var(--panel);
 }
 
 .mode-btn {
   min-width: 60px;
   min-height: 34px;
-
   border: 0;
   border-radius: 7px;
-
   color: var(--muted);
-
   font-size: 12px;
   font-weight: 900;
-
   background: transparent;
-
-  transition:
-    background .18s ease,
-    color .18s ease;
 }
 
 .mode-btn.active {
-  color: white;
+  color: #fff;
   background: var(--blue);
-
-  box-shadow:
-    0 4px 15px rgba(47,147,255,.2);
 }
 
 .main-nav {
   display: flex;
-
   align-self: stretch;
-
   overflow-x: auto;
-
-  scrollbar-width: none;
-}
-
-.main-nav::-webkit-scrollbar {
-  display: none;
 }
 
 .nav-btn {
   min-width: 78px;
-
   padding: 0 13px;
 
   border: 0;
-
   border-bottom: 3px solid transparent;
 
   color: var(--muted);
-
   font-size: 13px;
   font-weight: 800;
-
   white-space: nowrap;
 
   background: transparent;
@@ -499,74 +329,63 @@ h4 {
 
 .nav-btn.active {
   border-bottom-color: var(--red);
-
-  color: white;
+  color: #fff;
 
   background:
     linear-gradient(
       to top,
-      rgba(255, 76, 85, 0.1),
+      rgba(255,76,85,.10),
       transparent
     );
 }
 
 .topbar-right {
   display: flex;
-
   justify-content: flex-end;
-
   gap: 8px;
 }
 
-
-/* =========================================================
-   SETUP PANEL
-========================================================= */
+/* =====================================================
+   SETUP
+===================================================== */
 
 .setup-panel {
   position: fixed;
-
   inset: 76px 0 0;
-
   z-index: 90;
 
   padding: 24px;
-
   overflow-y: auto;
 
-  background:
-    rgba(3, 8, 13, 0.985);
+  background: rgba(3,8,13,.985);
 
   transform: translateY(-110%);
-
-  transition:
-    transform .25s ease;
+  transition: transform .25s ease;
 }
 
 .setup-panel.open {
   transform: translateY(0);
 }
 
-.setup-main-head {
+.setup-panel > .panel-head,
+.setup-grid,
+.setup-actions {
   max-width: 1500px;
+  margin-left: auto;
+  margin-right: auto;
+}
 
-  margin:
-    0 auto 18px;
+.setup-panel > .panel-head {
+  margin-bottom: 18px;
 }
 
 .setup-grid {
   display: grid;
-
   grid-template-columns:
     1.15fr
     1fr
     1fr;
-
   gap: 14px;
-
-  max-width: 1500px;
-
-  margin: auto;
 }
 
 .setup-card {
@@ -575,14 +394,9 @@ h4 {
 
 .setup-actions {
   display: flex;
-
-  max-width: 1500px;
-
-  margin: 18px auto 0;
-
   justify-content: flex-end;
-
   gap: 10px;
+  margin-top: 18px;
 }
 
 .setup-actions .primary-btn {
@@ -591,57 +405,45 @@ h4 {
 
 .player-setup-heading {
   display: flex;
-
   align-items: center;
   justify-content: space-between;
-
   gap: 12px;
 }
 
 .player-form-list {
   display: grid;
-
   gap: 10px;
-
   margin-top: 14px;
 }
 
 .player-form-row {
   display: grid;
-
   grid-template-columns:
     70px
     1fr
     auto
     auto;
-
   gap: 8px;
-
   align-items: center;
 }
 
 .player-form-row button {
   min-width: 38px;
   height: 40px;
-
   border: 1px solid var(--line);
   border-radius: 8px;
-
   background: var(--panel-2);
 }
 
 .player-form-row button[data-remove-player] {
   border-color: #743039;
-
   color: #ff8f96;
-
   background: var(--red-soft);
 }
 
-
-/* =========================================================
+/* =====================================================
    COMMON
-========================================================= */
+===================================================== */
 
 .main-content {
   padding: 12px;
@@ -649,37 +451,20 @@ h4 {
 
 .tab-section {
   display: none;
-
-  animation:
-    sectionIn .2s ease;
 }
 
 .tab-section.active {
   display: block;
 }
 
-@keyframes sectionIn {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
 .panel {
-  position: relative;
-
   border: 1px solid var(--line);
   border-radius: var(--radius);
 
   background:
     linear-gradient(
       145deg,
-      rgba(255, 255, 255, 0.018),
+      rgba(255,255,255,.018),
       transparent
     ),
     var(--panel);
@@ -689,23 +474,15 @@ h4 {
 
 .panel-head {
   display: flex;
-
   align-items: center;
   justify-content: space-between;
-
   gap: 14px;
-}
-
-.panel-head.small {
-  margin-top: 24px;
 }
 
 .section-kicker {
   color: var(--blue);
-
   font-size: 10px;
   font-weight: 900;
-
   letter-spacing: 1.5px;
 }
 
@@ -724,26 +501,19 @@ h4 {
 
 .panel-help {
   margin: 7px 0 0;
-
   color: var(--muted);
-
   font-size: 12px;
 }
 
 .form-grid {
   display: grid;
-
   gap: 12px;
-
   margin-top: 16px;
 }
 
 .form-grid.two {
   grid-template-columns:
-    repeat(
-      2,
-      minmax(0, 1fr)
-    );
+    repeat(2,minmax(0,1fr));
 }
 
 .form-grid.one {
@@ -752,11 +522,8 @@ h4 {
 
 .field {
   display: grid;
-
   gap: 7px;
-
   color: #d8e0e8;
-
   font-size: 12px;
   font-weight: 700;
 }
@@ -764,7 +531,7 @@ h4 {
 .field.inline {
   grid-template-columns:
     auto
-    minmax(125px, 1fr);
+    minmax(125px,1fr);
 
   align-items: center;
 }
@@ -775,29 +542,21 @@ h4 {
 
 .empty-message {
   padding: 28px 12px;
-
   color: var(--muted);
-
   text-align: center;
-
-  line-height: 1.7;
 }
 
 .mini-label {
   color: var(--muted);
-
   font-size: 10px;
   font-weight: 900;
-
   letter-spacing: 1.2px;
 }
 
 .mini-badge,
 .gold-badge {
   padding: 7px 10px;
-
   border-radius: 8px;
-
   font-size: 11px;
   font-weight: 900;
 }
@@ -812,61 +571,19 @@ h4 {
   background: var(--gold-soft);
 }
 
-
-/* =========================================================
-   SETUP RULE PREVIEW
-========================================================= */
-
-.rule-preview {
-  margin-top: 16px;
-
-  padding: 13px 14px;
-
-  border: 1px solid rgba(47,147,255,.22);
-  border-radius: 10px;
-
-  background:
-    linear-gradient(
-      135deg,
-      rgba(47,147,255,.08),
-      rgba(156,124,255,.04)
-    );
-}
-
-.rule-preview-title {
-  color: var(--muted);
-
-  font-size: 9px;
-  font-weight: 900;
-
-  letter-spacing: 1.3px;
-}
-
-.rule-preview-content {
-  margin-top: 6px;
-
-  color: #cfe5ff;
-
-  font-size: 12px;
-}
-
-
-/* =========================================================
-   LIVE
-========================================================= */
+/* =====================================================
+   LIVE GRID
+===================================================== */
 
 .live-grid {
   display: grid;
-
   grid-template-columns:
     250px
-    minmax(580px, 1fr)
+    minmax(580px,1fr)
     350px;
 
   gap: 12px;
-
   max-width: 1840px;
-
   margin: auto;
 }
 
@@ -874,9 +591,7 @@ h4 {
 .center-column,
 .right-column {
   display: grid;
-
   align-content: start;
-
   gap: 12px;
 }
 
@@ -890,60 +605,46 @@ h4 {
 .mini-shot-panel,
 .recent-panel,
 .mvp-panel,
-.live-leader-panel,
-.mode-analysis-card {
+.live-leader-panel {
   padding: 17px;
 }
 
-
-/* =========================================================
+/* =====================================================
    GAME INFO
-========================================================= */
+===================================================== */
 
 .game-info-list {
   display: grid;
-
   gap: 12px;
-
   margin: 16px 0 0;
 }
 
 .game-info-list div {
   display: grid;
-
   grid-template-columns:
     75px
     1fr;
-
   gap: 9px;
 }
 
 .game-info-list dt {
   color: var(--muted);
-
   font-size: 11px;
 }
 
 .game-info-list dd {
   margin: 0;
-
   overflow: hidden;
-
   color: #d9e2ea;
-
   font-size: 11px;
-
   text-align: right;
-
   text-overflow: ellipsis;
-
   white-space: nowrap;
 }
 
-
-/* =========================================================
+/* =====================================================
    TEAM CARDS
-========================================================= */
+===================================================== */
 
 .team-summary-card {
   min-height: 160px;
@@ -959,30 +660,24 @@ h4 {
 
 .team-summary-card h2 {
   margin: 18px 0 7px;
-
   font-size: 21px;
 }
 
 .team-summary-card p {
   margin: 0;
-
   color: var(--muted);
-
   font-size: 12px;
 }
 
 .score-line {
   display: flex;
-
   align-items: flex-end;
   justify-content: space-between;
-
   margin-top: 17px;
 }
 
 .score-line span {
   color: var(--muted);
-
   font-size: 11px;
 }
 
@@ -992,32 +687,24 @@ h4 {
 
 .team-small-stats {
   display: flex;
-
   gap: 15px;
-
   margin-top: 12px;
-
   color: var(--muted);
-
   font-size: 10px;
 }
 
 .team-small-stats b {
   margin-left: 3px;
-
-  color: white;
+  color: #fff;
 }
 
-
-/* =========================================================
+/* =====================================================
    QUICK ACTION
-========================================================= */
+===================================================== */
 
 .quick-action-buttons {
   display: grid;
-
   gap: 9px;
-
   margin-top: 13px;
 }
 
@@ -1025,20 +712,17 @@ h4 {
   width: 100%;
 }
 
-
-/* =========================================================
+/* =====================================================
    SCOREBOARD
-========================================================= */
+===================================================== */
 
 .scoreboard-panel {
   overflow: hidden;
-
   padding: 0;
 }
 
 .scoreboard-top {
   display: grid;
-
   grid-template-columns:
     1fr
     225px
@@ -1050,9 +734,7 @@ h4 {
 .score-team,
 .scoreboard-center {
   display: flex;
-
   flex-direction: column;
-
   align-items: center;
   justify-content: center;
 }
@@ -1077,83 +759,61 @@ h4 {
 
 .score-team h2 {
   margin: 8px 0 0;
-
   font-size: 18px;
 }
 
 .score-value {
   margin-top: 6px;
-
   font-size: 78px;
-
   font-weight: 900;
-
   line-height: 1;
 }
 
 .team-live-meta {
   display: flex;
-
   gap: 13px;
-
   margin-top: 12px;
-
   color: var(--muted);
-
   font-size: 10px;
 }
 
 .team-live-meta b {
-  margin-left: 3px;
-
-  color: white;
+  color: #fff;
 }
 
 .scoreboard-center {
   padding: 14px;
-
   border-right: 1px solid var(--line);
   border-left: 1px solid var(--line);
-
-  background:
-    rgba(0,0,0,.2);
+  background: rgba(0,0,0,.2);
 }
 
 .big-mid-text {
   margin: 8px 0;
-
   color: var(--gold);
-
   font-size: 23px;
   font-weight: 900;
 }
 
 .clock-wrap {
   display: grid;
-
-  grid-template-columns:
-    1fr
-    1fr;
-
+  grid-template-columns: 1fr 1fr;
   gap: 13px;
 }
 
 .clock-wrap > div {
   min-width: 82px;
-
   text-align: center;
 }
 
 .clock-label {
   color: var(--muted);
-
   font-size: 9px;
   font-weight: 800;
 }
 
 .clock-value {
   margin-top: 3px;
-
   font-size: 30px;
   font-weight: 900;
 }
@@ -1164,56 +824,45 @@ h4 {
 
 .clock-controls {
   display: grid;
-
   grid-template-columns:
-    repeat(3, 1fr);
+    repeat(3,1fr);
 
   gap: 6px;
-
   margin-top: 14px;
 }
 
 .clock-controls button {
   min-height: 34px;
-
   padding: 0 8px;
-
   font-size: 10px;
 }
 
-
-/* =========================================================
+/* =====================================================
    ON COURT
-========================================================= */
+===================================================== */
 
 .oncourt-header,
 .action-header {
   display: flex;
-
   align-items: center;
   justify-content: space-between;
-
   gap: 13px;
 }
 
 .oncourt-wrap {
   display: grid;
-
   grid-template-columns:
     1fr
     46px
     1fr;
 
   gap: 10px;
-
   align-items: center;
-
   margin-top: 15px;
 }
 
 .sub-head {
   margin-bottom: 10px;
-
   font-size: 10px;
   font-weight: 900;
 }
@@ -1228,54 +877,35 @@ h4 {
 
 .oncourt-list {
   display: grid;
-
   grid-template-columns:
-    repeat(
-      3,
-      minmax(82px, 1fr)
-    );
+    repeat(3,minmax(82px,1fr));
 
   gap: 8px;
 }
 
 .player-live-card {
   min-height: 125px;
-
   padding: 13px 8px;
 
   border: 1px solid var(--line);
   border-radius: 10px;
 
   text-align: center;
-
   background: #0a151f;
-
-  transition:
-    transform .15s ease,
-    border-color .15s ease,
-    box-shadow .15s ease;
-}
-
-.player-live-card:hover {
-  transform: translateY(-1px);
 }
 
 .player-live-card.team-a-card {
-  border-color:
-    rgba(47,147,255,.5);
+  border-color: rgba(47,147,255,.5);
 }
 
 .player-live-card.team-b-card {
-  border-color:
-    rgba(255,76,85,.5);
+  border-color: rgba(255,76,85,.5);
 }
 
 .player-live-card.selected {
   transform: translateY(-2px);
-
   box-shadow:
-    0 0 0 2px var(--gold),
-    0 8px 20px rgba(246,186,63,.12);
+    0 0 0 2px var(--gold);
 }
 
 .player-live-card.out {
@@ -1284,68 +914,50 @@ h4 {
 
 .player-live-card .number {
   display: block;
-
   font-size: 30px;
   font-weight: 900;
 }
 
 .player-live-card .name {
   display: block;
-
   margin-top: 5px;
-
   overflow: hidden;
-
   font-size: 12px;
   font-weight: 800;
-
   text-overflow: ellipsis;
-
   white-space: nowrap;
 }
 
 .player-live-card .points {
   display: block;
-
   margin-top: 9px;
-
   color: var(--muted);
-
   font-size: 10px;
 }
 
 .vs-mark {
   display: grid;
-
   width: 42px;
   height: 42px;
-
   place-items: center;
 
   border: 1px solid var(--line);
   border-radius: 50%;
 
   color: var(--muted);
-
   font-size: 11px;
   font-weight: 900;
 }
 
 .lineup-live-summary {
   display: grid;
-
-  grid-template-columns:
-    1fr
-    1fr;
-
+  grid-template-columns: 1fr 1fr;
   gap: 9px;
-
   margin-top: 13px;
 }
 
 .lineup-live-summary div {
   display: flex;
-
   align-items: center;
   justify-content: space-between;
 
@@ -1359,7 +971,6 @@ h4 {
 
 .lineup-live-summary span {
   color: var(--muted);
-
   font-size: 10px;
 }
 
@@ -1367,55 +978,34 @@ h4 {
   font-size: 16px;
 }
 
-
-/* =========================================================
+/* =====================================================
    PLAYER ACTION
-========================================================= */
+===================================================== */
 
 .action-header p {
   margin: 6px 0 0;
-
   color: var(--muted);
-
   font-size: 11px;
 }
 
 .action-grid {
   display: grid;
-
   grid-template-columns:
-    repeat(
-      4,
-      minmax(0,1fr)
-    );
+    repeat(4,minmax(0,1fr));
 
   gap: 9px;
-
   margin-top: 15px;
 }
 
 .stat-btn {
   min-height: 68px;
-
   padding: 8px;
 
   border: 1px solid var(--line);
   border-radius: 9px;
 
   font-weight: 800;
-
   background: var(--panel-2);
-
-  transition:
-    transform .15s ease,
-    border-color .15s ease,
-    background .15s ease;
-}
-
-.stat-btn:hover {
-  border-color: #3b5263;
-
-  background: var(--panel-3);
 }
 
 .stat-btn strong,
@@ -1429,55 +1019,40 @@ h4 {
 
 .stat-btn span {
   margin-top: 4px;
-
   color: var(--muted);
-
   font-size: 10px;
 }
 
 .stat-btn.made {
-  border-color:
-    rgba(47,147,255,.55);
-
+  border-color: rgba(47,147,255,.55);
   color: #91c9ff;
-
   background: var(--blue-soft);
 }
 
 .stat-btn.miss {
-  border-color:
-    rgba(255,76,85,.55);
-
+  border-color: rgba(255,76,85,.55);
   color: #ff9ba1;
-
   background: var(--red-soft);
 }
 
 .stat-btn.substitution {
-  border-color:
-    rgba(246,186,63,.42);
-
+  border-color: rgba(246,186,63,.42);
   color: #f8d482;
-
   background: var(--gold-soft);
 }
 
-
-/* =========================================================
-   TEAM COMPARISON
-========================================================= */
+/* =====================================================
+   COMPARISON
+===================================================== */
 
 .compare-rows {
   display: grid;
-
   gap: 11px;
-
   margin-top: 14px;
 }
 
 .compare-row {
   display: grid;
-
   grid-template-columns:
     30px
     1fr
@@ -1485,15 +1060,12 @@ h4 {
     30px;
 
   gap: 8px;
-
   align-items: center;
-
   font-size: 11px;
 }
 
 .compare-row > span:first-child {
   color: var(--blue);
-
   text-align: right;
 }
 
@@ -1503,48 +1075,32 @@ h4 {
 
 .compare-label {
   color: var(--muted);
-
   text-align: center;
 }
 
 .compare-bar {
   display: flex;
-
   height: 7px;
-
   overflow: hidden;
-
   border-radius: 999px;
-
   background: #1a2833;
 }
 
-.compare-bar div {
-  min-width: 0;
-
-  transition:
-    width .25s ease;
-}
-
-.compare-bar div:first-child {
+.compare-bar .bar-a {
   background: var(--blue);
 }
 
-.compare-bar div:last-child {
+.compare-bar .bar-b {
   background: var(--red);
 }
 
-
-/* =========================================================
+/* =====================================================
    CANVAS
-========================================================= */
+===================================================== */
 
 #miniCourtCanvas,
-#shotChartCanvas,
-#passNetworkCanvas,
-#scoreFlowCanvas {
+#shotChartCanvas {
   display: block;
-
   width: 100%;
   height: auto;
 
@@ -1560,29 +1116,18 @@ h4 {
   cursor: crosshair;
 }
 
-
-/* =========================================================
-   LEGEND
-========================================================= */
-
 .legend {
   display: flex;
-
   gap: 17px;
-
   margin-top: 10px;
 
   color: var(--muted);
-
   font-size: 11px;
 }
 
 .legend.vertical {
   display: grid;
-
   gap: 10px;
-
-  margin-top: 20px;
 }
 
 .legend-blue {
@@ -1597,22 +1142,18 @@ h4 {
   color: var(--gold);
 }
 
-
-/* =========================================================
+/* =====================================================
    RECENT LOG
-========================================================= */
+===================================================== */
 
 .recent-log-list {
   max-height: 270px;
-
   margin-top: 12px;
-
   overflow-y: auto;
 }
 
 .recent-log-row {
   display: grid;
-
   grid-template-columns:
     45px
     1fr
@@ -1632,25 +1173,21 @@ h4 {
   color: var(--muted);
 }
 
-
-/* =========================================================
+/* =====================================================
    MVP
-========================================================= */
+===================================================== */
 
 .mvp-card {
   display: grid;
-
   grid-template-columns:
     62px
     1fr
     auto;
 
   align-items: center;
-
   gap: 12px;
 
   margin-top: 13px;
-
   padding: 13px;
 
   border-radius: 11px;
@@ -1660,10 +1197,8 @@ h4 {
 
 .mvp-icon {
   display: grid;
-
   width: 62px;
   height: 62px;
-
   place-items: center;
 
   border-radius: 11px;
@@ -1675,55 +1210,41 @@ h4 {
 
 .mvp-team {
   color: var(--blue);
-
   font-size: 10px;
   font-weight: 900;
 }
 
 .mvp-name {
   margin-top: 5px;
-
   font-size: 16px;
   font-weight: 900;
 }
 
 .mvp-stats {
   margin-top: 4px;
-
   color: var(--muted);
-
   font-size: 10px;
 }
 
 .mvp-score {
   font-size: 26px;
-
   font-weight: 900;
 }
 
-
-/* =========================================================
-   LIVE LEADER
-========================================================= */
-
 .leader-card-list {
   display: grid;
-
   gap: 9px;
-
   margin-top: 13px;
 }
 
 .live-leader-card {
   display: grid;
-
   grid-template-columns:
     72px
     1fr
     auto;
 
   gap: 9px;
-
   align-items: center;
 
   padding: 11px;
@@ -1736,71 +1257,24 @@ h4 {
 
 .live-leader-card span {
   color: var(--muted);
-
   font-size: 10px;
 }
 
 .live-leader-card strong {
   overflow: hidden;
-
   font-size: 12px;
-
   text-overflow: ellipsis;
-
   white-space: nowrap;
 }
 
 .live-leader-card b {
   color: var(--gold);
-
   font-size: 17px;
 }
 
-
-/* =========================================================
-   MODE ANALYSIS
-========================================================= */
-
-.mode-analysis-summary {
-  display: grid;
-
-  grid-template-columns:
-    repeat(2, 1fr);
-
-  gap: 9px;
-
-  margin-top: 14px;
-}
-
-.mode-analysis-summary div {
-  padding: 12px;
-
-  border: 1px solid var(--line);
-  border-radius: 9px;
-
-  background: var(--panel-2);
-}
-
-.mode-analysis-summary span {
-  display: block;
-
-  color: var(--muted);
-
-  font-size: 9px;
-}
-
-.mode-analysis-summary strong {
-  display: block;
-
-  margin-top: 5px;
-
-  font-size: 21px;
-}
-
-
-/* =========================================================
+/* =====================================================
    RECORD
-========================================================= */
+===================================================== */
 
 .record-main-panel,
 .record-bottom-grid .panel {
@@ -1809,15 +1283,12 @@ h4 {
 
 .record-main-panel {
   max-width: 1580px;
-
   margin: auto;
 }
 
 .record-tools {
   display: flex;
-
   gap: 9px;
-
   align-items: center;
 }
 
@@ -1827,67 +1298,44 @@ h4 {
 
 .table-wrap {
   margin-top: 20px;
-
   overflow-x: auto;
-
-  border-radius: 9px;
 }
 
 .stats-table {
   width: 100%;
-
-  min-width: 1120px;
-
+  min-width: 1000px;
   border-collapse: collapse;
 }
 
 .stats-table th,
 .stats-table td {
   padding: 14px 11px;
-
   border-bottom: 1px solid var(--line);
 
   font-size: 11px;
-
   text-align: center;
-
   white-space: nowrap;
 }
 
 .stats-table th {
   color: var(--muted);
-
   font-size: 9px;
-
   letter-spacing: .7px;
-
   background: #08121a;
-}
-
-.stats-table tbody tr {
-  transition:
-    background .15s ease;
-}
-
-.stats-table tbody tr:hover {
-  background: rgba(255,255,255,.018);
 }
 
 .stats-table td:nth-child(3) {
   font-weight: 800;
-
   text-align: left;
 }
 
 .empty-cell {
   color: var(--muted);
-
   text-align: center !important;
 }
 
 .record-bottom-grid {
   display: grid;
-
   grid-template-columns:
     1fr
     1fr;
@@ -1895,18 +1343,15 @@ h4 {
   gap: 12px;
 
   max-width: 1580px;
-
   margin: 12px auto 0;
 }
 
 .team-summary-stats {
   display: grid;
-
   grid-template-columns:
-    repeat(2, 1fr);
+    repeat(2,1fr);
 
   gap: 10px;
-
   margin-top: 15px;
 }
 
@@ -1923,16 +1368,13 @@ h4 {
 .summary-stat-card span,
 .player-detail-stat span {
   color: var(--muted);
-
   font-size: 9px;
 }
 
 .summary-stat-card strong,
 .player-detail-stat strong {
   display: block;
-
   margin-top: 5px;
-
   font-size: 22px;
 }
 
@@ -1942,9 +1384,8 @@ h4 {
 
 .player-detail-grid {
   display: grid;
-
   grid-template-columns:
-    repeat(4, 1fr);
+    repeat(4,1fr);
 
   gap: 9px;
 }
@@ -1952,23 +1393,19 @@ h4 {
 .period-stats-list,
 .substitution-log-list {
   display: grid;
-
   gap: 9px;
-
   margin-top: 14px;
 }
 
 .period-stat-row,
 .substitution-log-row {
   display: grid;
-
   grid-template-columns:
     80px
     1fr
     auto;
 
   gap: 10px;
-
   align-items: center;
 
   padding: 11px;
@@ -1979,26 +1416,12 @@ h4 {
   background: var(--panel-2);
 }
 
-.period-stat-row span,
-.substitution-log-row span {
-  color: var(--muted);
-
-  font-size: 10px;
-}
-
-.period-stat-row strong,
-.substitution-log-row strong {
-  font-size: 12px;
-}
-
-
-/* =========================================================
+/* =====================================================
    SHOT CHART
-========================================================= */
+===================================================== */
 
 .shotchart-grid {
   display: grid;
-
   grid-template-columns:
     minmax(620px,1fr)
     330px;
@@ -2006,7 +1429,6 @@ h4 {
   gap: 12px;
 
   max-width: 1580px;
-
   margin: auto;
 }
 
@@ -2021,9 +1443,7 @@ h4 {
 
 .shotchart-tools {
   display: flex;
-
   flex-wrap: wrap;
-
   gap: 10px;
 }
 
@@ -2033,12 +1453,10 @@ h4 {
 
 .shot-buttons {
   display: grid;
-
   grid-template-columns:
-    repeat(4, 1fr);
+    repeat(4,1fr);
 
   gap: 10px;
-
   margin-top: 13px;
 }
 
@@ -2061,21 +1479,17 @@ h4 {
 
 .shot-summary-stat span {
   color: var(--muted);
-
   font-size: 10px;
 }
 
 .shot-summary-stat strong {
   display: block;
-
   margin-top: 6px;
-
   font-size: 24px;
 }
 
 .shot-analysis-grid {
   display: grid;
-
   grid-template-columns:
     1fr
     1fr;
@@ -2083,7 +1497,6 @@ h4 {
   gap: 12px;
 
   max-width: 1580px;
-
   margin: 12px auto 0;
 }
 
@@ -2093,12 +1506,10 @@ h4 {
 
 .zone-analysis-cards {
   display: grid;
-
   grid-template-columns:
-    repeat(3, 1fr);
+    repeat(3,1fr);
 
   gap: 10px;
-
   margin-top: 15px;
 }
 
@@ -2113,44 +1524,35 @@ h4 {
 
 .zone-card span {
   color: var(--muted);
-
   font-size: 10px;
 }
 
 .zone-card strong {
   display: block;
-
   margin-top: 5px;
-
   font-size: 22px;
 }
 
 .zone-card small {
   display: block;
-
   margin-top: 5px;
-
   color: #c9d4dd;
 }
 
 .shot-trend-list {
   display: grid;
-
   gap: 9px;
-
   margin-top: 15px;
 }
 
 .shot-trend-row {
   display: grid;
-
   grid-template-columns:
     75px
     1fr
     auto;
 
   gap: 10px;
-
   align-items: center;
 
   padding: 11px;
@@ -2161,116 +1563,12 @@ h4 {
   background: var(--panel-2);
 }
 
-.shot-trend-row span {
-  color: var(--muted);
-
-  font-size: 10px;
-}
-
-.shot-trend-row strong {
-  font-size: 13px;
-}
-
-
-/* =========================================================
-   ADVANCED METRICS
-========================================================= */
-
-.advanced-metrics-grid {
-  display: grid;
-
-  grid-template-columns:
-    repeat(4, 1fr);
-
-  gap: 10px;
-
-  margin-top: 15px;
-}
-
-.metric-card {
-  padding: 14px;
-
-  border: 1px solid var(--line);
-  border-radius: 10px;
-
-  background: var(--panel-2);
-}
-
-.metric-card span {
-  color: var(--muted);
-
-  font-size: 9px;
-}
-
-.metric-card strong {
-  display: block;
-
-  margin-top: 6px;
-
-  font-size: 21px;
-}
-
-.metric-card small {
-  display: block;
-
-  margin-top: 5px;
-
-  color: #c3cdd6;
-
-  font-size: 9px;
-}
-
-
-/* =========================================================
-   MODE COMPARISON
-========================================================= */
-
-.mode-comparison-card {
-  display: grid;
-
-  gap: 10px;
-
-  margin-top: 15px;
-}
-
-.mode-comparison-row {
-  display: grid;
-
-  grid-template-columns:
-    70px
-    1fr
-    1fr;
-
-  gap: 8px;
-
-  align-items: center;
-
-  padding: 11px;
-
-  border: 1px solid var(--line);
-  border-radius: 9px;
-
-  background: var(--panel-2);
-}
-
-.mode-comparison-row span {
-  color: var(--muted);
-
-  font-size: 10px;
-}
-
-.mode-comparison-row strong {
-  font-size: 13px;
-}
-
-
-/* =========================================================
+/* =====================================================
    VIDEO
-========================================================= */
+===================================================== */
 
 .video-grid {
   display: grid;
-
   grid-template-columns:
     minmax(620px,1fr)
     400px;
@@ -2278,68 +1576,12 @@ h4 {
   gap: 12px;
 
   max-width: 1580px;
-
   margin: auto;
 }
 
 .video-panel,
 .tag-panel {
   padding: 22px;
-}
-
-.video-load-row {
-  display: flex;
-
-  gap: 10px;
-
-  align-items: end;
-
-  margin-top: 18px;
-}
-
-.video-load-row.second {
-  align-items: center;
-
-  margin-top: 11px;
-}
-
-.grow {
-  flex: 1;
-}
-
-.file-label {
-  display: inline-flex;
-
-  min-height: 43px;
-
-  align-items: center;
-  justify-content: center;
-
-  padding: 0 16px;
-
-  border: 1px solid var(--line);
-  border-radius: 9px;
-
-  font-size: 12px;
-  font-weight: 800;
-
-  background: var(--panel-2);
-
-  cursor: pointer;
-}
-
-.file-label:hover {
-  background: var(--panel-3);
-}
-
-.file-label input {
-  display: none;
-}
-
-.file-name {
-  color: var(--muted);
-
-  font-size: 11px;
 }
 
 .video-player-wrap {
@@ -2354,85 +1596,32 @@ h4 {
   border: 1px solid var(--line);
   border-radius: 11px;
 
-  background: black;
-}
-
-#analysisVideo,
-.youtube-player-wrap,
-#youtubePlayer {
-  width: 100%;
-
-  min-height: 430px;
+  background: #000;
 }
 
 #analysisVideo {
   display: block;
+  width: 100%;
+  min-height: 430px;
 }
 
 .video-controls {
   display: grid;
-
   grid-template-columns:
     repeat(9,1fr);
 
   gap: 7px;
-
   margin-top: 11px;
 }
 
 .video-controls button {
   min-height: 40px;
-
   padding: 0 7px;
-
   font-size: 10px;
-}
-
-.video-analysis-options {
-  display: grid;
-
-  grid-template-columns:
-    repeat(3,1fr);
-
-  gap: 8px;
-
-  margin-top: 12px;
-}
-
-.check-card {
-  display: flex;
-
-  align-items: center;
-
-  gap: 8px;
-
-  min-height: 42px;
-
-  padding: 9px 11px;
-
-  border: 1px solid var(--line);
-  border-radius: 9px;
-
-  color: #cdd7e0;
-
-  font-size: 10px;
-
-  background: var(--panel-2);
-
-  cursor: pointer;
-}
-
-.check-card input {
-  width: auto;
-
-  min-height: auto;
-
-  accent-color: var(--blue);
 }
 
 .tag-buttons {
   display: grid;
-
   grid-template-columns:
     repeat(3,1fr);
 
@@ -2454,21 +1643,17 @@ h4 {
 
 .tag-btn.selected {
   border-color: var(--gold);
-
   color: var(--gold);
-
   background: var(--gold-soft);
 }
 
 .video-tag-list {
   max-height: 350px;
-
   overflow-y: auto;
 }
 
 .video-tag-row {
   display: grid;
-
   grid-template-columns:
     55px
     1fr
@@ -2485,35 +1670,22 @@ h4 {
 
 .video-tag-row p {
   margin: 5px 0 0;
-
   color: var(--muted);
-
   font-size: 10px;
 }
 
-.video-tag-row button {
-  border: 0;
-
-  color: var(--blue);
-
-  background: transparent;
-}
-
-
-/* =========================================================
-   POWER ANALYSIS
-========================================================= */
+/* =====================================================
+   ANALYSIS
+===================================================== */
 
 .analysis-grid {
   display: grid;
-
   grid-template-columns:
     repeat(2,minmax(0,1fr));
 
   gap: 12px;
 
   max-width: 1580px;
-
   margin: auto;
 }
 
@@ -2521,29 +1693,21 @@ h4 {
   padding: 22px;
 }
 
-.pass-network-panel {
-  grid-column: 1 / -1;
-}
-
 .lineup-analysis-list,
 .ranking-list,
 .team-style-analysis {
   display: grid;
-
   gap: 9px;
-
   margin-top: 15px;
 }
 
 .lineup-analysis-row {
   display: grid;
-
   grid-template-columns:
     minmax(180px,1fr)
     repeat(4,90px);
 
   gap: 9px;
-
   align-items: center;
 
   padding: 12px;
@@ -2554,32 +1718,14 @@ h4 {
   background: var(--panel-2);
 }
 
-.lineup-analysis-row span {
-  color: var(--muted);
-
-  font-size: 10px;
-}
-
-.lineup-analysis-row strong {
-  overflow: hidden;
-
-  font-size: 12px;
-
-  text-overflow: ellipsis;
-
-  white-space: nowrap;
-}
-
 .ranking-row {
   display: grid;
-
   grid-template-columns:
     38px
     1fr
     auto;
 
   gap: 10px;
-
   align-items: center;
 
   padding: 11px;
@@ -2592,16 +1738,13 @@ h4 {
 
 .ranking-row .rank-number {
   display: grid;
-
   width: 30px;
   height: 30px;
-
   place-items: center;
 
   border-radius: 50%;
 
   color: var(--gold);
-
   font-size: 12px;
   font-weight: 900;
 
@@ -2614,13 +1757,11 @@ h4 {
 
 .ranking-row span {
   color: var(--muted);
-
   font-size: 10px;
 }
 
 .ranking-row b {
   color: var(--blue);
-
   font-size: 18px;
 }
 
@@ -2635,23 +1776,18 @@ h4 {
 
 .team-style-card h4 {
   margin: 0;
-
   font-size: 14px;
 }
 
 .team-style-card p {
   margin: 7px 0 0;
-
   color: var(--muted);
-
   font-size: 11px;
-
   line-height: 1.6;
 }
 
 .style-meter {
   height: 8px;
-
   margin-top: 10px;
 
   overflow: hidden;
@@ -2663,7 +1799,6 @@ h4 {
 
 .style-meter div {
   height: 100%;
-
   border-radius: inherit;
 
   background:
@@ -2674,246 +1809,12 @@ h4 {
     );
 }
 
-
-/* =========================================================
-   MODE PERFORMANCE
-========================================================= */
-
-.mode-performance-comparison {
-  display: grid;
-
-  gap: 10px;
-
-  margin-top: 15px;
-}
-
-.mode-performance-card {
-  padding: 14px;
-
-  border: 1px solid var(--line);
-  border-radius: 10px;
-
-  background: var(--panel-2);
-}
-
-.mode-performance-card h4 {
-  margin: 0;
-
-  font-size: 14px;
-}
-
-.mode-performance-card p {
-  margin: 7px 0 0;
-
-  color: var(--muted);
-
-  font-size: 10px;
-
-  line-height: 1.6;
-}
-
-
-/* =========================================================
-   GAME FLOW
-========================================================= */
-
-.flow-grid {
-  display: grid;
-
-  grid-template-columns:
-    1.45fr
-    .75fr;
-
-  gap: 12px;
-
-  max-width: 1580px;
-
-  margin: auto;
-}
-
-.flow-main-panel {
-  grid-column: 1 / -1;
-
-  padding: 22px;
-}
-
-.flow-summary-grid {
-  display: grid;
-
-  grid-template-columns:
-    repeat(2,1fr);
-
-  gap: 10px;
-
-  margin-top: 15px;
-}
-
-.flow-summary-card {
-  padding: 14px;
-
-  border: 1px solid var(--line);
-  border-radius: 10px;
-
-  background: var(--panel-2);
-}
-
-.flow-summary-card span {
-  color: var(--muted);
-
-  font-size: 9px;
-}
-
-.flow-summary-card strong {
-  display: block;
-
-  margin-top: 5px;
-
-  font-size: 22px;
-}
-
-.run-list {
-  display: grid;
-
-  gap: 9px;
-
-  margin-top: 15px;
-}
-
-.run-row {
-  display: grid;
-
-  grid-template-columns:
-    80px
-    1fr
-    auto;
-
-  gap: 10px;
-
-  align-items: center;
-
-  padding: 12px;
-
-  border: 1px solid var(--line);
-  border-radius: 9px;
-
-  background: var(--panel-2);
-}
-
-.run-row span {
-  color: var(--muted);
-
-  font-size: 10px;
-}
-
-.run-row strong {
-  font-size: 12px;
-}
-
-.run-row b {
-  color: var(--gold);
-
-  font-size: 18px;
-}
-
-.flow-timeline-panel {
-  min-width: 0;
-}
-
-.game-timeline-list {
-  display: grid;
-
-  gap: 8px;
-
-  max-height: 430px;
-
-  margin-top: 15px;
-
-  overflow-y: auto;
-}
-
-.timeline-row {
-  display: grid;
-
-  grid-template-columns:
-    70px
-    70px
-    1fr;
-
-  gap: 10px;
-
-  padding: 10px 12px;
-
-  border-left: 2px solid var(--blue);
-
-  background: var(--panel-2);
-
-  border-radius: 0 8px 8px 0;
-}
-
-.timeline-row time {
-  color: var(--muted);
-
-  font-size: 10px;
-}
-
-.timeline-row .timeline-team {
-  font-size: 10px;
-
-  font-weight: 900;
-}
-
-.timeline-row p {
-  margin: 0;
-
-  color: #d6dee7;
-
-  font-size: 11px;
-}
-
-.key-moment-list {
-  display: grid;
-
-  gap: 9px;
-
-  margin-top: 15px;
-}
-
-.key-moment-card {
-  padding: 13px;
-
-  border: 1px solid rgba(246,186,63,.3);
-
-  border-radius: 10px;
-
-  background: var(--gold-soft);
-}
-
-.key-moment-card strong {
-  display: block;
-
-  color: var(--gold);
-
-  font-size: 12px;
-}
-
-.key-moment-card p {
-  margin: 6px 0 0;
-
-  color: #d8dfe7;
-
-  font-size: 10px;
-
-  line-height: 1.6;
-}
-
-
-/* =========================================================
+/* =====================================================
    REPORT
-========================================================= */
+===================================================== */
 
 .report-grid {
   display: grid;
-
   grid-template-columns:
     1fr
     1fr;
@@ -2921,7 +1822,6 @@ h4 {
   gap: 12px;
 
   max-width: 1580px;
-
   margin: auto;
 }
 
@@ -2936,7 +1836,6 @@ h4 {
 
 .report-controls {
   display: grid;
-
   grid-template-columns:
     auto
     minmax(190px,1fr)
@@ -2949,75 +1848,24 @@ h4 {
   margin-top: 17px;
 }
 
-.report-type-switch {
-  display: flex;
-
-  gap: 5px;
-
-  margin-top: 14px;
-
-  padding: 4px;
-
-  width: max-content;
-
-  max-width: 100%;
-
-  border: 1px solid var(--line);
-  border-radius: 10px;
-
-  background: var(--panel-2);
-
-  overflow-x: auto;
-}
-
-.report-type-btn {
-  min-height: 34px;
-
-  padding: 0 13px;
-
-  border: 0;
-
-  border-radius: 7px;
-
-  color: var(--muted);
-
-  font-size: 10px;
-  font-weight: 900;
-
-  background: transparent;
-
-  white-space: nowrap;
-}
-
-.report-type-btn.active {
-  color: white;
-
-  background: var(--blue);
-}
-
 .report-output {
   margin-top: 15px;
-
   line-height: 1.75;
 }
 
 .report-output h4 {
   margin: 18px 0 8px;
-
   color: var(--blue);
 }
 
 .report-output p {
   margin: 7px 0;
-
   color: #d4dde6;
 }
 
 .report-output ul {
   margin: 8px 0;
-
   padding-left: 20px;
-
   color: #d4dde6;
 }
 
@@ -3025,11 +1873,9 @@ h4 {
   padding: 15px;
 
   border: 1px solid rgba(246,186,63,.35);
-
   border-radius: 10px;
 
   color: #ffe0a0;
-
   background: var(--gold-soft);
 }
 
@@ -3037,7 +1883,6 @@ h4 {
   padding: 15px;
 
   border: 1px solid rgba(47,147,255,.35);
-
   border-radius: 10px;
 
   background: var(--blue-soft);
@@ -3058,33 +1903,19 @@ h4 {
 
 .training-card h4 {
   margin: 0;
-
   color: var(--gold);
 }
 
 .training-card p {
-  margin: 7px 0;
+  margin: 7px 0 0;
 }
 
-.report-preview-options {
-  display: grid;
-
-  grid-template-columns:
-    repeat(3,1fr);
-
-  gap: 8px;
-
-  margin-top: 15px;
-}
-
-
-/* =========================================================
+/* =====================================================
    LEAGUE
-========================================================= */
+===================================================== */
 
 .league-grid {
   display: grid;
-
   grid-template-columns:
     1fr
     1.4fr;
@@ -3092,7 +1923,6 @@ h4 {
   gap: 12px;
 
   max-width: 1580px;
-
   margin: auto;
 }
 
@@ -3106,7 +1936,6 @@ h4 {
 
 .league-add-row {
   display: grid;
-
   grid-template-columns:
     1fr
     auto;
@@ -3118,21 +1947,17 @@ h4 {
 
 .league-team-list {
   display: grid;
-
   gap: 9px;
-
   margin-top: 14px;
 }
 
 .league-team-row {
   display: grid;
-
   grid-template-columns:
     1fr
     auto;
 
   gap: 9px;
-
   align-items: center;
 
   padding: 11px 12px;
@@ -3149,15 +1974,12 @@ h4 {
 
 .league-team-row button {
   min-width: 38px;
-
   height: 34px;
 
   border: 1px solid rgba(255,76,85,.35);
-
   border-radius: 8px;
 
   color: #ff9aa0;
-
   background: var(--red-soft);
 }
 
@@ -3167,7 +1989,6 @@ h4 {
 
 .schedule-controls {
   display: grid;
-
   grid-template-columns:
     1fr
     1fr
@@ -3182,15 +2003,12 @@ h4 {
 
 .schedule-list {
   display: grid;
-
   gap: 9px;
-
   margin-top: 15px;
 }
 
 .schedule-row {
   display: grid;
-
   grid-template-columns:
     100px
     1fr
@@ -3198,7 +2016,6 @@ h4 {
     auto;
 
   gap: 10px;
-
   align-items: center;
 
   padding: 12px;
@@ -3209,38 +2026,12 @@ h4 {
   background: var(--panel-2);
 }
 
-.schedule-row time {
-  color: var(--muted);
-
-  font-size: 10px;
-}
-
-.schedule-row strong {
-  font-size: 13px;
-}
-
-.schedule-row span {
-  color: var(--gold);
-
-  font-size: 11px;
-}
-
-.schedule-row button {
-  border: 0;
-
-  color: #ff9299;
-
-  background: transparent;
-}
-
 .season-leader-grid {
   display: grid;
-
   grid-template-columns:
     repeat(5,1fr);
 
   gap: 10px;
-
   margin-top: 15px;
 }
 
@@ -3255,44 +2046,35 @@ h4 {
 
 .season-leader-card span {
   color: var(--muted);
-
   font-size: 10px;
 }
 
 .season-leader-card strong {
   display: block;
-
   margin-top: 7px;
-
   font-size: 15px;
 }
 
 .game-data-actions {
   display: flex;
-
   gap: 10px;
-
   margin-top: 15px;
 }
 
 .saved-game-list {
   display: grid;
-
   gap: 9px;
-
   margin-top: 15px;
 }
 
 .saved-game-row {
   display: grid;
-
   grid-template-columns:
     1fr
     auto
     auto;
 
   gap: 9px;
-
   align-items: center;
 
   padding: 12px;
@@ -3303,83 +2085,11 @@ h4 {
   background: var(--panel-2);
 }
 
-.saved-game-row strong {
-  display: block;
-
-  font-size: 13px;
-}
-
-.saved-game-row span {
-  display: block;
-
-  margin-top: 4px;
-
-  color: var(--muted);
-
-  font-size: 10px;
-}
-
-.saved-game-row button {
-  min-height: 34px;
-
-  padding: 0 10px;
-
-  border: 1px solid var(--line);
-  border-radius: 8px;
-
-  background: var(--panel-3);
-}
-
-
-/* =========================================================
-   HISTORY MODE
-========================================================= */
-
-.history-mode-switch {
-  display: flex;
-
-  width: max-content;
-
-  margin-top: 13px;
-
-  padding: 4px;
-
-  border: 1px solid var(--line);
-  border-radius: 10px;
-
-  background: var(--panel-2);
-}
-
-
-/* =========================================================
-   SCROLLBAR
-========================================================= */
-
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: #071019;
-}
-
-::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-
-  background: #263947;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #365063;
-}
-
-
-/* =========================================================
+/* =====================================================
    LARGE SCREEN
-========================================================= */
+===================================================== */
 
-@media (max-width: 1450px) {
+@media (max-width:1450px) {
 
   .topbar {
     grid-template-columns:
@@ -3426,23 +2136,13 @@ h4 {
       repeat(5,1fr);
   }
 
-  .advanced-metrics-grid {
-    grid-template-columns:
-      repeat(2,1fr);
-  }
-
-  .season-leader-grid {
-    grid-template-columns:
-      repeat(3,1fr);
-  }
 }
 
-
-/* =========================================================
+/* =====================================================
    TABLET
-========================================================= */
+===================================================== */
 
-@media (max-width: 1100px) {
+@media (max-width:1100px) {
 
   .topbar {
     grid-template-columns:
@@ -3454,7 +2154,6 @@ h4 {
 
   .topbar-center {
     position: fixed;
-
     right: 0;
     bottom: 0;
     left: 0;
@@ -3465,8 +2164,7 @@ h4 {
 
     border-top: 1px solid var(--line);
 
-    background:
-      rgba(3,7,12,.985);
+    background: rgba(3,7,12,.985);
   }
 
   .mode-switch {
@@ -3475,12 +2173,8 @@ h4 {
 
   .main-nav {
     display: grid;
-
     grid-template-columns:
-      repeat(
-        8,
-        minmax(72px,1fr)
-      );
+      repeat(7,minmax(72px,1fr));
 
     min-height: 60px;
 
@@ -3489,7 +2183,6 @@ h4 {
 
   .nav-btn {
     min-width: 72px;
-
     padding: 0 5px;
 
     border-top: 3px solid transparent;
@@ -3500,8 +2193,6 @@ h4 {
 
   .nav-btn.active {
     border-top-color: var(--red);
-
-    border-bottom: 0;
   }
 
   .main-content {
@@ -3547,10 +2238,6 @@ h4 {
     grid-template-columns: 1fr;
   }
 
-  .pass-network-panel {
-    grid-column: auto;
-  }
-
   .league-grid {
     grid-template-columns: 1fr;
   }
@@ -3570,29 +2257,16 @@ h4 {
     grid-column: 1 / -1;
   }
 
-  .flow-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .report-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .report-generator-panel {
-    grid-column: auto;
-  }
 }
 
-
-/* =========================================================
+/* =====================================================
    MOBILE
-========================================================= */
+===================================================== */
 
-@media (max-width: 720px) {
+@media (max-width:720px) {
 
   .topbar {
     min-height: 60px;
-
     padding: 0 10px;
   }
 
@@ -3605,10 +2279,7 @@ h4 {
   }
 
   .brand-logo {
-    width: 34px;
-    height: 34px;
-
-    font-size: 21px;
+    font-size: 22px;
   }
 
   .topbar-right {
@@ -3617,20 +2288,17 @@ h4 {
 
   .topbar-right button {
     min-height: 35px;
-
     padding: 0 7px;
-
     font-size: 8px;
   }
 
   .main-nav {
     grid-template-columns:
-      repeat(8,82px);
+      repeat(7,82px);
   }
 
   .setup-panel {
     inset: 60px 0 60px;
-
     padding: 14px;
   }
 
@@ -3657,12 +2325,6 @@ h4 {
       auto;
   }
 
-  .player-form-row button[data-oncourt-player] {
-    grid-column: 1 / -1;
-
-    width: 100%;
-  }
-
   .left-column,
   .right-column {
     grid-template-columns: 1fr;
@@ -3672,7 +2334,6 @@ h4 {
   .quick-action-panel,
   .mini-shot-panel {
     grid-column: auto;
-
     grid-row: auto;
   }
 
@@ -3693,7 +2354,6 @@ h4 {
     font-size: 10px;
 
     text-overflow: ellipsis;
-
     white-space: nowrap;
   }
 
@@ -3723,7 +2383,6 @@ h4 {
 
   .clock-controls {
     grid-template-columns: 1fr;
-
     width: 92%;
   }
 
@@ -3733,9 +2392,7 @@ h4 {
 
   .team-live-meta {
     display: grid;
-
     gap: 4px;
-
     text-align: center;
   }
 
@@ -3781,14 +2438,12 @@ h4 {
 
   .panel-head {
     align-items: flex-start;
-
     flex-direction: column;
   }
 
   .record-tools,
   .shotchart-tools {
     display: grid;
-
     width: 100%;
   }
 
@@ -3806,8 +2461,7 @@ h4 {
   .analysis-grid .panel,
   .report-generator-panel,
   .report-panel,
-  .league-grid .panel,
-  .flow-main-panel {
+  .league-grid .panel {
     padding: 16px;
   }
 
@@ -3829,30 +2483,14 @@ h4 {
       1fr;
   }
 
-  .advanced-metrics-grid {
-    grid-template-columns:
-      1fr
-      1fr;
-  }
-
-  .video-load-row {
-    display: grid;
-  }
-
   .video-player-wrap,
-  #analysisVideo,
-  .youtube-player-wrap,
-  #youtubePlayer {
+  #analysisVideo {
     min-height: 240px;
   }
 
   .video-controls {
     grid-template-columns:
       repeat(3,1fr);
-  }
-
-  .video-analysis-options {
-    grid-template-columns: 1fr;
   }
 
   .tag-buttons {
@@ -3875,30 +2513,12 @@ h4 {
       1fr;
   }
 
-  .lineup-analysis-row strong {
-    grid-column: 1 / -1;
-  }
-
   .report-generator-panel {
     grid-column: auto;
   }
 
   .report-controls {
     grid-template-columns: 1fr;
-  }
-
-  .report-type-switch {
-    width: 100%;
-  }
-
-  .report-type-btn {
-    flex: 1;
-  }
-
-  .report-preview-options {
-    grid-template-columns:
-      1fr
-      1fr;
   }
 
   .league-add-row {
@@ -3935,107 +2555,17 @@ h4 {
       1fr;
   }
 
-  .saved-game-row > div {
-    grid-column: 1 / -1;
-  }
-
-  .mode-analysis-summary {
-    grid-template-columns:
-      1fr
-      1fr;
-  }
-
-  .mode-comparison-row {
-    grid-template-columns:
-      55px
-      1fr
-      1fr;
-  }
-
-  .flow-summary-grid {
-    grid-template-columns:
-      1fr
-      1fr;
-  }
-
-  .timeline-row {
-    grid-template-columns:
-      55px
-      55px
-      1fr;
-  }
 }
 
-
-/* =========================================================
-   VERY SMALL MOBILE
-========================================================= */
-
-@media (max-width: 420px) {
-
-  .topbar-right button:nth-child(2) {
-    display: none;
-  }
-
-  .scoreboard-top {
-    grid-template-columns:
-      1fr
-      96px
-      1fr;
-  }
-
-  .score-value {
-    font-size: 42px;
-  }
-
-  .big-mid-text {
-    font-size: 13px;
-  }
-
-  .clock-value {
-    font-size: 17px;
-  }
-
-  .action-grid {
-    gap: 6px;
-  }
-
-  .stat-btn {
-    min-height: 61px;
-
-    font-size: 10px;
-  }
-
-  .stat-btn strong {
-    font-size: 16px;
-  }
-
-  .zone-analysis-cards,
-  .advanced-metrics-grid,
-  .report-preview-options {
-    grid-template-columns: 1fr;
-  }
-
-  .season-leader-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-
-/* =========================================================
-   PRINT / PDF
-========================================================= */
+/* =====================================================
+   PRINT
+===================================================== */
 
 @media print {
 
   body {
-    color: black;
-
-    background: white;
-  }
-
-  body::before {
-    display: none;
+    color: #000;
+    background: #fff;
   }
 
   .topbar,
@@ -4067,9 +2597,8 @@ h4 {
 
     border: 1px solid #aaa;
 
-    color: black;
-
-    background: white;
+    color: #000;
+    background: #fff;
 
     box-shadow: none;
 
@@ -4079,7 +2608,7 @@ h4 {
   .report-output p,
   .report-output h4,
   .report-output li {
-    color: black;
+    color: #000;
   }
 
   .report-highlight,
@@ -4087,12 +2616,8 @@ h4 {
   .training-card {
     border: 1px solid #aaa;
 
-    color: black;
-
-    background: white;
+    color: #000;
+    background: #fff;
   }
 
-  canvas {
-    max-width: 100%;
-  }
 }
