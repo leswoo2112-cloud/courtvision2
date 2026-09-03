@@ -1,2978 +1,771 @@
-/* =========================================================
-   COURTVISION PRO
-   Basketball Analytics System
-   ========================================================= */
-
-let mode = 3;
-
-let state = {
-  teamA: {
-    name: "설천고 A",
-    players: []
-  },
-
-  teamB: {
-    name: "설천고 B",
-    players: []
-  },
-
-  selectedPlayer: null,
-
-  game: {
-    name: "농구 경기",
-    place: "",
-    minutes: 10,
-    shotClock: 14,
-    target: 21,
-    period: 1
-  },
-
-  score: {
-    A: 0,
-    B: 0
-  },
-
-  fouls: {
-    A: 0,
-    B: 0
-  },
-
-  shots: [],
-  logs: [],
-  videoMarks: []
-};
-
-
-/* =========================================================
-   선수 생성
-   ========================================================= */
-
-function createPlayer(team, number, name) {
-  return {
-    id: team + "_" + Date.now() + "_" + Math.random(),
-
-    team,
-    number,
-    name,
-
-    onCourt: true,
-
-    stats: {
-      pts: 0,
-      reb: 0,
-      ast: 0,
-      stl: 0,
-      blk: 0,
-      to: 0,
-      pf: 0,
-
-      fgMade: 0,
-      fgAttempt: 0,
-
-      off: 0,
-      def: 0,
-      plusMinus: 0
-    },
-
-    minutes: 0
-  };
+* {
+  box-sizing: border-box;
 }
 
+body {
+  margin: 0;
+  background: #050b11;
+  color: #eef5fb;
+  font-family:
+    -apple-system,
+    BlinkMacSystemFont,
+    "Noto Sans KR",
+    Arial,
+    sans-serif;
+}
 
-/* =========================================================
-   초기 선수
-   ========================================================= */
+button,
+select,
+input {
+  font: inherit;
+}
 
-function initPlayers() {
+button {
+  cursor: pointer;
+  background: #0c1924;
+  border: 1px solid #294052;
+  color: #eef5fb;
+  border-radius: 10px;
+  padding: 11px 15px;
+}
 
-  if (
-    state.teamA.players.length ||
-    state.teamB.players.length
-  ) {
-    return;
+button:hover {
+  filter: brightness(1.15);
+}
+
+/* HEADER */
+
+header {
+  height: 92px;
+  background: #050a0f;
+  border-bottom: 1px solid #243442;
+  display: flex;
+  align-items: center;
+  gap: 22px;
+  padding: 10px 24px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.brand {
+  min-width: 245px;
+  display: grid;
+  grid-template-columns: 36px 1fr;
+  align-items: center;
+  font-size: 30px;
+}
+
+.brand b {
+  font-size: 21px;
+  font-style: italic;
+  line-height: 1.05;
+}
+
+.brand small {
+  grid-column: 2;
+  color: #718493;
+  font-size: 8px;
+  letter-spacing: 2px;
+}
+
+/* MODE */
+
+.modes {
+  display: flex;
+  background: #0a1722;
+  border: 1px solid #294052;
+  border-radius: 12px;
+  padding: 4px;
+}
+
+.modes button {
+  border: 0;
+  background: transparent;
+  color: #82919e;
+  font-weight: 800;
+}
+
+.modes .active {
+  background: #278ff5;
+  color: white;
+}
+
+/* NAV */
+
+nav {
+  display: flex;
+  flex: 1;
+  height: 100%;
+  overflow: auto;
+}
+
+nav button {
+  border: 0;
+  background: transparent;
+  border-radius: 0;
+  color: #82919e;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+nav button.active {
+  color: #fff;
+  border-bottom: 4px solid #ff5063;
+}
+
+/* HEADER ACTION */
+
+.actions {
+  display: flex;
+  gap: 7px;
+}
+
+.danger {
+  color: #ff7787;
+  border-color: #9d3042;
+}
+
+.primary {
+  background: #248cf5;
+  border-color: #248cf5;
+  font-weight: 800;
+}
+
+/* PAGE */
+
+.page {
+  padding: 18px 24px 55px;
+  max-width: 1600px;
+  margin: auto;
+}
+
+.eyebrow {
+  font-size: 11px;
+  letter-spacing: 2px;
+  font-weight: 900;
+  color: #2b9aff;
+}
+
+.red {
+  color: #ff4d61;
+}
+
+.muted {
+  color: #7f919f;
+}
+
+/* GRID */
+
+.grid {
+  display: grid;
+  gap: 14px;
+}
+
+.live {
+  grid-template-columns:
+    270px
+    minmax(480px, 1fr)
+    330px;
+}
+
+.two {
+  grid-template-columns: 1fr 1fr;
+}
+
+.three {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.stack {
+  display: grid;
+  gap: 14px;
+}
+
+/* PANEL */
+
+.panel {
+  background:
+    linear-gradient(
+      145deg,
+      #0d1a25,
+      #0a151e
+    );
+
+  border: 1px solid #263d4f;
+  border-radius: 18px;
+  padding: 19px;
+
+  box-shadow:
+    0 10px 30px #0003;
+}
+
+/* SCOREBOARD */
+
+.scoreboard {
+  display: grid;
+  grid-template-columns: 1fr 170px 1fr;
+  padding: 0;
+  overflow: hidden;
+}
+
+.scoreteam {
+  text-align: center;
+  padding: 28px;
+}
+
+.scoreteam.a {
+  background: #0d1e2f;
+}
+
+.scoreteam.b {
+  background: #1a1017;
+}
+
+.team {
+  font-size: 20px;
+  font-weight: 800;
+}
+
+.score {
+  font-size: 74px;
+  font-weight: 900;
+  line-height: 1;
+  margin: 18px 0;
+}
+
+.clock {
+  text-align: center;
+  padding: 25px 10px;
+
+  border-left: 1px solid #29404f;
+  border-right: 1px solid #29404f;
+}
+
+.q {
+  color: #ffc52f;
+  font-size: 23px;
+  font-weight: 900;
+}
+
+.time {
+  font-size: 32px;
+  font-weight: 900;
+  margin: 12px;
+}
+
+.shot {
+  color: #ff4d61;
+  font-size: 29px;
+  font-weight: 900;
+}
+
+/* PLAYERS */
+
+.players {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 9px;
+}
+
+.pcard {
+  padding: 16px 7px;
+  text-align: center;
+}
+
+.pcard.a {
+  border-color: #1879cf;
+}
+
+.pcard.b {
+  border-color: #a23349;
+}
+
+.pcard.sel {
+  outline: 2px solid #f4bf35;
+}
+
+.num {
+  font-size: 30px;
+  font-weight: 900;
+}
+
+.pname {
+  font-weight: 800;
+}
+
+.mini {
+  font-size: 11px;
+  color: #7d8f9d;
+}
+
+/* ACTIONS */
+
+.acts {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 9px;
+}
+
+.act {
+  min-height: 68px;
+  font-size: 17px;
+  font-weight: 900;
+}
+
+.act small {
+  display: block;
+  color: #8395a4;
+}
+
+.miss {
+  color: #ff8290;
+  border-color: #8f3042;
+}
+
+.gold {
+  color: #f5ce63;
+}
+
+.quick button {
+  width: 100%;
+  margin-top: 7px;
+}
+
+/* COURT */
+
+.court {
+  height: 100%;
+  min-height: 220px;
+
+  position: relative;
+
+  border: 2px solid #40596b;
+  border-radius: 10px;
+
+  background: #06111a;
+  overflow: hidden;
+}
+
+.court:before {
+  content: "";
+
+  position: absolute;
+  inset: 10% 6%;
+
+  border: 2px solid #385163;
+}
+
+.court:after {
+  content: "";
+
+  position: absolute;
+
+  width: 66%;
+  height: 52%;
+
+  left: 17%;
+  top: 18%;
+
+  border: 2px solid #456072;
+  border-bottom: 0;
+
+  border-radius: 50% 50% 0 0;
+}
+
+.key {
+  position: absolute;
+
+  width: 28%;
+  height: 34%;
+
+  left: 36%;
+  top: 10%;
+
+  border: 2px solid #456072;
+}
+
+.rim {
+  position: absolute;
+
+  width: 28px;
+  height: 28px;
+
+  border: 2px solid #8196a6;
+  border-radius: 50%;
+
+  left: calc(50% - 14px);
+  top: 8%;
+}
+
+/* SHOT DOT */
+
+.dot {
+  position: absolute;
+
+  width: 12px;
+  height: 12px;
+
+  border-radius: 50%;
+
+  background: #62b3ff;
+
+  box-shadow:
+    0 0 13px #268df5;
+
+  transform:
+    translate(-50%, -50%);
+}
+
+.dot.miss {
+  background: #ff5063;
+
+  box-shadow:
+    0 0 13px #ff5063;
+
+  border-radius: 0;
+
+  transform:
+    translate(-50%, -50%)
+    rotate(45deg);
+}
+
+/* LOG */
+
+.log {
+  padding: 9px 0;
+  border-bottom: 1px solid #203340;
+  font-size: 13px;
+}
+
+/* LEADERS */
+
+.leaders {
+  display: grid;
+  gap: 7px;
+}
+
+.leader {
+  display: flex;
+  justify-content: space-between;
+
+  padding: 10px;
+
+  border: 1px solid #203746;
+  border-radius: 9px;
+}
+
+/* KPI */
+
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.kpi {
+  background: #0b1721;
+
+  border: 1px solid #22394a;
+  border-radius: 13px;
+
+  padding: 15px;
+}
+
+.kpi .v {
+  font-size: 28px;
+  font-weight: 900;
+  margin-top: 5px;
+}
+
+/* TABLE */
+
+.table {
+  overflow: auto;
+}
+
+.table table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 760px;
+}
+
+.table th,
+.table td {
+  padding: 13px 9px;
+
+  border-bottom: 1px solid #203341;
+
+  text-align: center;
+}
+
+.table th {
+  color: #7f919f;
+  font-size: 11px;
+  background: #07121a;
+}
+
+.table td:first-child,
+.table th:first-child {
+  text-align: left;
+}
+
+/* BARS */
+
+.bars {
+  display: grid;
+  gap: 12px;
+}
+
+.barrow {
+  display: grid;
+
+  grid-template-columns:
+    125px
+    1fr
+    45px;
+
+  gap: 8px;
+
+  align-items: center;
+
+  font-size: 12px;
+}
+
+.bar {
+  height: 9px;
+
+  background: #142432;
+
+  border-radius: 99px;
+}
+
+.bar i {
+  display: block;
+
+  height: 100%;
+
+  background: #268df5;
+
+  border-radius: 99px;
+}
+
+/* RADAR */
+
+.radar {
+  width: 310px;
+  height: 310px;
+}
+
+.radarwrap {
+  display: grid;
+  place-items: center;
+
+  min-height: 330px;
+}
+
+/* HEAT */
+
+.heat {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+
+.cell {
+  height: 70px;
+
+  border: 1px solid #284051;
+  border-radius: 8px;
+
+  padding: 7px;
+
+  font-size: 11px;
+
+  background:
+    rgba(
+      38,
+      141,
+      245,
+      var(--h)
+    );
+}
+
+/* TRAINING */
+
+.recs {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+}
+
+.drill {
+  padding: 14px;
+
+  border: 1px solid #264157;
+  border-radius: 13px;
+
+  background: #0b1924;
+
+  min-height: 155px;
+}
+
+.tag {
+  font-size: 10px;
+
+  background: #12304a;
+  color: #82c4ff;
+
+  padding: 4px 7px;
+
+  border-radius: 7px;
+}
+
+/* REPORT */
+
+.reporthead {
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+
+  margin-bottom: 14px;
+}
+
+.filters {
+  display: flex;
+  gap: 8px;
+}
+
+/* PLAYER SETUP */
+
+.setup {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+.sp {
+  display: grid;
+
+  grid-template-columns:
+    55px
+    1fr
+    38px;
+
+  gap: 6px;
+
+  margin: 7px 0;
+}
+
+.sp input {
+  width: 100%;
+
+  background: #07121b;
+  color: #fff;
+
+  border: 1px solid #284052;
+  border-radius: 8px;
+
+  padding: 9px;
+}
+
+/* DIALOG */
+
+dialog {
+  background: #09131d;
+  color: #fff;
+
+  border: 1px solid #294052;
+
+  border-radius: 18px;
+
+  width: min(900px, 94vw);
+
+  padding: 20px;
+}
+
+dialog::backdrop {
+  background: #000b;
+}
+
+.dh {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.dh button {
+  font-size: 20px;
+}
+
+/* RESPONSIVE */
+
+@media(max-width:1100px) {
+
+  header {
+    height: auto;
+    flex-wrap: wrap;
   }
 
-  const count = mode === 3 ? 3 : 5;
+  .brand {
+    min-width: 220px;
+  }
 
-  for (let i = 1; i <= count; i++) {
+  nav {
+    order: 5;
+    width: 100%;
+    height: 45px;
+  }
 
-    state.teamA.players.push(
-      createPlayer(
-        "A",
-        i,
-        `A팀 선수 ${i}`
-      )
-    );
+  .live {
+    grid-template-columns: 1fr;
+  }
 
-    state.teamB.players.push(
-      createPlayer(
-        "B",
-        i,
-        `B팀 선수 ${i}`
-      )
-    );
+  .two,
+  .three {
+    grid-template-columns: 1fr;
+  }
+
+  .recs {
+    grid-template-columns: repeat(2, 1fr);
   }
 }
 
+@media(max-width:650px) {
 
-/* =========================================================
-   모드 변경
-   ========================================================= */
-
-function setMode(newMode) {
-
-  mode = newMode;
-
-  document.getElementById("mode3")
-    .classList.toggle(
-      "active",
-      mode === 3
-    );
-
-  document.getElementById("mode5")
-    .classList.toggle(
-      "active",
-      mode === 5
-    );
-
-  document.getElementById("modeBadge")
-    .textContent =
-      mode === 3 ? "3대3" : "5대5";
-
-  document.getElementById("infoMode")
-    .textContent =
-      mode === 3 ? "3대3" : "5대5";
-
-  document.getElementById("liveSubtitle")
-    .textContent =
-      `${mode}대${mode} 실시간 경기 기록 시스템`;
-
-  renderSetup();
-  renderLivePlayers();
-  updateEverything();
-}
-
-
-/* =========================================================
-   선수 설정
-   ========================================================= */
-
-function renderSetup() {
-
-  renderTeamPlayers("A");
-  renderTeamPlayers("B");
-}
-
-
-function renderTeamPlayers(team) {
-
-  const container =
-    document.getElementById(
-      "players" + team
-    );
-
-  if (!container) return;
-
-  const players =
-    state["team" + team].players;
-
-  container.innerHTML = "";
-
-  players.forEach((p, index) => {
-
-    const row =
-      document.createElement("div");
-
-    row.className =
-      "player-row";
-
-    row.innerHTML = `
-
-      <input
-        type="number"
-        value="${p.number}"
-        onchange="
-          editPlayer(
-            '${team}',
-            ${index},
-            'number',
-            this.value
-          )
-        "
-      >
-
-      <input
-        value="${escapeHTML(p.name)}"
-        onchange="
-          editPlayer(
-            '${team}',
-            ${index},
-            'name',
-            this.value
-          )
-        "
-      >
-
-      <button
-        class="${p.onCourt ? "playing" : ""}"
-        onclick="toggleCourt('${p.id}')"
-      >
-        ${p.onCourt ? "출전" : "벤치"}
-      </button>
-
-      <button
-        class="remove"
-        onclick="
-          removePlayer(
-            '${team}',
-            ${index}
-          )
-        "
-      >
-        ×
-      </button>
-
-    `;
-
-    container.appendChild(row);
-  });
-}
-
-
-function editPlayer(
-  team,
-  index,
-  key,
-  value
-) {
-
-  state["team" + team]
-    .players[index][key] =
-      key === "number"
-        ? Number(value)
-        : value;
-
-  renderLivePlayers();
-  renderRecords();
-  renderPlayerSelects();
-}
-
-
-function addPlayer(team) {
-
-  const players =
-    state["team" + team].players;
-
-  const number =
-    players.length
-      ? Math.max(
-          ...players.map(
-            p => Number(p.number)
-          )
-        ) + 1
-      : 1;
-
-  players.push(
-    createPlayer(
-      team,
-      number,
-      `${team}팀 선수 ${number}`
-    )
-  );
-
-  renderSetup();
-  renderLivePlayers();
-  renderPlayerSelects();
-}
-
-
-function removePlayer(team, index) {
-
-  const player =
-    state["team" + team]
-      .players[index];
-
-  if (
-    state.selectedPlayer === player.id
-  ) {
-    state.selectedPlayer = null;
+  .page {
+    padding: 12px;
   }
 
-  state["team" + team]
-    .players.splice(index, 1);
-
-  renderSetup();
-  renderLivePlayers();
-  renderPlayerSelects();
-  updateEverything();
-}
-
-
-function toggleCourt(id) {
-
-  const p =
-    findPlayer(id);
-
-  if (!p) return;
-
-  const players =
-    state["team" + p.team].players;
-
-  const current =
-    players.filter(
-      x => x.onCourt
-    ).length;
-
-  if (
-    !p.onCourt &&
-    current >= mode
-  ) {
-
-    alert(
-      `${mode}대${mode}는 최대 ${mode}명까지 출전할 수 있습니다.`
-    );
-
-    return;
+  .scoreboard {
+    grid-template-columns: 1fr;
   }
 
-  p.onCourt =
-    !p.onCourt;
-
-  renderSetup();
-  renderLivePlayers();
-}
-
-
-/* =========================================================
-   팀 이름
-   ========================================================= */
-
-function changeTeamName(
-  team,
-  value
-) {
-
-  state["team" + team].name =
-    value;
-
-  updateEverything();
-}
-
-
-/* =========================================================
-   선수 검색
-   ========================================================= */
-
-function allPlayers() {
-
-  return [
-    ...state.teamA.players,
-    ...state.teamB.players
-  ];
-}
-
-
-function findPlayer(id) {
-
-  return allPlayers()
-    .find(
-      p => p.id === id
-    );
-}
-
-
-/* =========================================================
-   라이브 선수
-   ========================================================= */
-
-function renderLivePlayers() {
-
-  renderLiveTeam("A");
-  renderLiveTeam("B");
-}
-
-
-function renderLiveTeam(team) {
-
-  const container =
-    document.getElementById(
-      "livePlayers" + team
-    );
-
-  if (!container) return;
-
-  container.innerHTML = "";
-
-  const players =
-    state["team" + team]
-      .players
-      .filter(
-        p => p.onCourt
-      )
-      .slice(0, mode);
-
-  players.forEach(p => {
-
-    const card =
-      document.createElement("div");
-
-    card.className =
-      "player-card " +
-      (team === "B"
-        ? "away "
-        : "") +
-      (
-        state.selectedPlayer === p.id
-          ? "selected"
-          : ""
-      );
-
-    card.onclick = () =>
-      selectPlayer(p.id);
-
-    card.innerHTML = `
-
-      <div class="number">
-        ${p.number}
-      </div>
-
-      <b>
-        ${escapeHTML(p.name)}
-      </b>
-
-      <small>
-        ${p.stats.pts} PTS
-        ·
-        ${p.stats.reb} REB
-        ·
-        ${p.stats.ast} AST
-      </small>
-
-    `;
-
-    container.appendChild(card);
-  });
-}
-
-
-/* =========================================================
-   선수 선택
-   ========================================================= */
-
-function selectPlayer(id) {
-
-  state.selectedPlayer =
-    id;
-
-  const p =
-    findPlayer(id);
-
-  if (!p) return;
-
-  document.getElementById(
-    "selectedTitle"
-  ).textContent =
-    `#${p.number} ${p.name}`;
-
-  document.getElementById(
-    "selectedStats"
-  ).innerHTML = `
-
-    출전 ${formatMinutes(p.minutes)}
-    · PTS ${p.stats.pts}
-    · REB ${p.stats.reb}
-    · AST ${p.stats.ast}
-    · STL ${p.stats.stl}
-    · BLK ${p.stats.blk}
-    · TO ${p.stats.to}
-    · PF ${p.stats.pf}
-
-  `;
-
-  renderLivePlayers();
-}
-
-
-/* =========================================================
-   경기 기록
-   ========================================================= */
-
-function stat(type) {
-
-  const p =
-    findPlayer(
-      state.selectedPlayer
-    );
-
-  if (!p) {
-
-    alert(
-      "먼저 선수를 선택해주세요."
-    );
-
-    return;
+  .clock {
+    order: -1;
   }
 
-
-  /* ---------- 3대3 ---------- */
-
-  if (
-    mode === 3 &&
-    type === "1P"
-  ) {
-
-    p.stats.pts += 1;
-
-    p.stats.fgMade++;
-    p.stats.fgAttempt++;
-
-    state.score[p.team] += 1;
-
-    recordSimpleShot(
-      p,
-      1,
-      true
-    );
-
-    addLog(
-      `${p.name} · 1점 성공`
-    );
-
+  .kpis {
+    grid-template-columns: repeat(2, 1fr);
   }
 
-
-  else if (
-    mode === 3 &&
-    type === "2P"
-  ) {
-
-    p.stats.pts += 2;
-
-    p.stats.fgMade++;
-    p.stats.fgAttempt++;
-
-    state.score[p.team] += 2;
-
-    recordSimpleShot(
-      p,
-      2,
-      true
-    );
-
-    addLog(
-      `${p.name} · 2점 성공`
-    );
-
+  .acts {
+    grid-template-columns: repeat(2, 1fr);
   }
 
-
-  /* ---------- 5대5 ---------- */
-
-  else if (
-    mode === 5 &&
-    type === "1P"
-  ) {
-
-    p.stats.pts += 1;
-
-    state.score[p.team] += 1;
-
-    addLog(
-      `${p.name} · 자유투 성공`
-    );
-
+  .players {
+    grid-template-columns: 1fr;
   }
 
-
-  else if (
-    mode === 5 &&
-    type === "2P"
-  ) {
-
-    p.stats.pts += 2;
-
-    p.stats.fgMade++;
-    p.stats.fgAttempt++;
-
-    state.score[p.team] += 2;
-
-    recordSimpleShot(
-      p,
-      2,
-      true
-    );
-
-    addLog(
-      `${p.name} · 2점슛 성공`
-    );
-
+  .recs {
+    grid-template-columns: 1fr;
   }
 
-
-  else if (
-    mode === 5 &&
-    type === "3P"
-  ) {
-
-    p.stats.pts += 3;
-
-    p.stats.fgMade++;
-    p.stats.fgAttempt++;
-
-    state.score[p.team] += 3;
-
-    recordSimpleShot(
-      p,
-      3,
-      true
-    );
-
-    addLog(
-      `${p.name} · 3점슛 성공`
-    );
-
+  .actions {
+    display: none;
   }
 
-
-  /* ---------- 3대3 3P 버튼 ---------- */
-
-  else if (
-    mode === 3 &&
-    type === "3P"
-  ) {
-
-    alert(
-      "3대3에서는 외곽슛을 2점으로 기록합니다."
-    );
-
-    return;
-
+  .setup {
+    grid-template-columns: 1fr;
   }
-
-
-  /* ---------- 실패 ---------- */
-
-  else if (
-    type === "MISS"
-  ) {
-
-    p.stats.fgAttempt++;
-
-    recordSimpleShot(
-      p,
-      0,
-      false
-    );
-
-    addLog(
-      `${p.name} · 슛 실패`
-    );
-
-  }
-
-
-  /* ---------- 기타 기록 ---------- */
-
-  else if (
-    type === "REB"
-  ) {
-
-    p.stats.reb++;
-
-    addLog(
-      `${p.name} · 리바운드`
-    );
-
-  }
-
-
-  else if (
-    type === "AST"
-  ) {
-
-    p.stats.ast++;
-
-    addLog(
-      `${p.name} · 어시스트`
-    );
-
-  }
-
-
-  else if (
-    type === "STL"
-  ) {
-
-    p.stats.stl++;
-
-    addLog(
-      `${p.name} · 스틸`
-    );
-
-  }
-
-
-  else if (
-    type === "BLK"
-  ) {
-
-    p.stats.blk++;
-
-    addLog(
-      `${p.name} · 블록`
-    );
-
-  }
-
-
-  else if (
-    type === "TO"
-  ) {
-
-    p.stats.to++;
-
-    addLog(
-      `${p.name} · 턴오버`
-    );
-
-  }
-
-
-  else if (
-    type === "PF"
-  ) {
-
-    p.stats.pf++;
-
-    state.fouls[p.team]++;
-
-    addLog(
-      `${p.name} · 파울`
-    );
-
-  }
-
-
-  updateEverything();
 }
-
-
-/* =========================================================
-   간단 슛 기록
-   ========================================================= */
-
-function recordSimpleShot(
-  player,
-  points,
-  success
-) {
-
-  state.shots.push({
-
-    id:
-      Date.now() +
-      Math.random(),
-
-    playerId:
-      player.id,
-
-    team:
-      player.team,
-
-    x:
-      50 +
-      (Math.random() * 30 - 15),
-
-    y:
-      45 +
-      (Math.random() * 30 - 15),
-
-    success,
-
-    type:
-      points === 1
-        ? "1점"
-        : points === 2
-          ? "2점"
-          : "3점",
-
-    time:
-      new Date()
-        .toLocaleTimeString()
-
-  });
-}
-
-
-/* =========================================================
-   슛차트 클릭
-   ========================================================= */
-
-function setShotResult(success) {
-
-  const select =
-    document.getElementById(
-      "shotPlayer"
-    );
-
-  const playerId =
-    select.value ||
-    state.selectedPlayer;
-
-  const player =
-    findPlayer(playerId);
-
-  if (!player) {
-
-    alert(
-      "먼저 선수를 선택해주세요."
-    );
-
-    return;
-  }
-
-  const court =
-    document.getElementById(
-      "shotCourt"
-    );
-
-  if (!court) return;
-
-  court.style.cursor =
-    "crosshair";
-
-  court.onclick =
-    function handler(e) {
-
-      const rect =
-        court.getBoundingClientRect();
-
-      const x =
-        (
-          (e.clientX -
-            rect.left) /
-          rect.width
-        ) * 100;
-
-      const y =
-        (
-          (e.clientY -
-            rect.top) /
-          rect.height
-        ) * 100;
-
-
-      state.shots.push({
-
-        id:
-          Date.now() +
-          Math.random(),
-
-        playerId:
-          player.id,
-
-        team:
-          player.team,
-
-        x,
-        y,
-
-        success,
-
-        type:
-          mode === 3
-            ? "필드골"
-            : "필드골",
-
-        time:
-          new Date()
-            .toLocaleTimeString()
-
-      });
-
-
-      addLog(
-        `${player.name} · ` +
-        `${success ? "슛 성공" : "슛 실패"} ` +
-        `(${Math.round(x)},${Math.round(y)})`
-      );
-
-
-      court.onclick = null;
-
-      renderShotChart();
-      renderMiniCourt();
-      renderLogs();
-
-    };
-}
-
-
-/* =========================================================
-   슛차트
-   ========================================================= */
-
-let heatmapOn = false;
-
-
-function renderShotChart() {
-
-  const court =
-    document.getElementById(
-      "shotCourt"
-    );
-
-  if (!court) return;
-
-  court.innerHTML =
-    `<span class="court-label">
-      ${mode}대${mode} COURT
-    </span>`;
-
-
-  const select =
-    document.getElementById(
-      "shotPlayer"
-    );
-
-  const playerId =
-    select
-      ? select.value
-      : "";
-
-
-  const shots =
-    playerId
-      ? state.shots.filter(
-          s =>
-            s.playerId ===
-            playerId
-        )
-      : state.shots;
-
-
-  shots.forEach(s => {
-
-    const dot =
-      document.createElement(
-        "div"
-      );
-
-    dot.className =
-      "shot-dot " +
-      (
-        s.success
-          ? "success"
-          : "fail"
-      );
-
-    dot.style.left =
-      s.x + "%";
-
-    dot.style.top =
-      s.y + "%";
-
-    if (!s.success) {
-      dot.textContent = "×";
-    }
-
-    court.appendChild(dot);
-
-  });
-
-
-  if (heatmapOn) {
-
-    drawHeatmap(
-      court,
-      shots
-    );
-
-  }
-
-
-  renderShotStats(shots);
-}
-
-
-function drawHeatmap(
-  court,
-  shots
-) {
-
-  if (!shots.length) return;
-
-  const groups = {};
-
-  shots.forEach(s => {
-
-    const gx =
-      Math.round(
-        s.x / 8
-      ) * 8;
-
-    const gy =
-      Math.round(
-        s.y / 8
-      ) * 8;
-
-    const key =
-      gx + "_" + gy;
-
-    if (!groups[key]) {
-      groups[key] = [];
-    }
-
-    groups[key].push(s);
-
-  });
-
-
-  Object.values(groups)
-    .forEach(group => {
-
-      const x =
-        group.reduce(
-          (sum,s) =>
-            sum + s.x,
-          0
-        ) /
-        group.length;
-
-      const y =
-        group.reduce(
-          (sum,s) =>
-            sum + s.y,
-          0
-        ) /
-        group.length;
-
-      const heat =
-        document.createElement(
-          "div"
-        );
-
-      heat.className =
-        "heat";
-
-      const size =
-        Math.min(
-          150,
-          55 +
-          group.length * 10
-        );
-
-      heat.style.width =
-        size + "px";
-
-      heat.style.height =
-        size + "px";
-
-      heat.style.left =
-        x + "%";
-
-      heat.style.top =
-        y + "%";
-
-      court.appendChild(
-        heat
-      );
-
-    });
-}
-
-
-function renderShotStats(shots) {
-
-  const total =
-    shots.length;
-
-  const made =
-    shots.filter(
-      s => s.success
-    ).length;
-
-  const pct =
-    total
-      ? Math.round(
-          made /
-          total *
-          100
-        )
-      : 0;
-
-  const one =
-    shots.filter(
-      s =>
-        s.success &&
-        s.type === "1점"
-    ).length;
-
-  const two =
-    shots.filter(
-      s =>
-        s.success &&
-        s.type === "2점"
-    ).length;
-
-  const three =
-    shots.filter(
-      s =>
-        s.success &&
-        s.type === "3점"
-    ).length;
-
-
-  const container =
-    document.getElementById(
-      "shotStats"
-    );
-
-  if (!container) return;
-
-
-  container.innerHTML = `
-
-    <div class="summary-grid">
-
-      <div class="summary-card">
-        <span>전체 슛</span>
-        <b>${total}</b>
-      </div>
-
-      <div class="summary-card">
-        <span>성공률</span>
-        <b>${pct}%</b>
-      </div>
-
-      <div class="summary-card">
-        <span>1점</span>
-        <b>${one}</b>
-      </div>
-
-      <div class="summary-card">
-        <span>2점</span>
-        <b>${two}</b>
-      </div>
-
-      <div class="summary-card">
-        <span>3점</span>
-        <b>${three}</b>
-      </div>
-
-      <div class="summary-card">
-        <span>실패</span>
-        <b>${total - made}</b>
-      </div>
-
-    </div>
-
-  `;
-}
-
-
-function toggleHeatmap() {
-
-  heatmapOn =
-    !heatmapOn;
-
-  renderShotChart();
-}
-
-
-function clearShots() {
-
-  if (
-    !confirm(
-      "슛차트를 모두 삭제할까요?"
-    )
-  ) return;
-
-  state.shots = [];
-
-  renderShotChart();
-  renderMiniCourt();
-}
-
-
-/* =========================================================
-   미니 슛차트
-   ========================================================= */
-
-function renderMiniCourt() {
-
-  const court =
-    document.getElementById(
-      "miniCourt"
-    );
-
-  if (!court) return;
-
-  court.innerHTML = "";
-
-  state.shots.forEach(s => {
-
-    const dot =
-      document.createElement(
-        "div"
-      );
-
-    dot.className =
-      "shot-dot " +
-      (
-        s.success
-          ? "success"
-          : "fail"
-      );
-
-    dot.style.left =
-      s.x + "%";
-
-    dot.style.top =
-      s.y + "%";
-
-    if (!s.success) {
-      dot.textContent = "×";
-    }
-
-    court.appendChild(
-      dot
-    );
-
-  });
-}
-
-
-/* =========================================================
-   기록표
-   ========================================================= */
-
-function renderRecords() {
-
-  const body =
-    document.getElementById(
-      "recordBody"
-    );
-
-  if (!body) return;
-
-  const filter =
-    document.getElementById(
-      "recordTeam"
-    );
-
-  const teamFilter =
-    filter
-      ? filter.value
-      : "ALL";
-
-  body.innerHTML = "";
-
-  allPlayers()
-    .filter(
-      p =>
-        teamFilter === "ALL" ||
-        p.team === teamFilter
-    )
-    .forEach(p => {
-
-      const pct =
-        p.stats.fgAttempt
-          ? Math.round(
-              p.stats.fgMade /
-              p.stats.fgAttempt *
-              100
-            )
-          : 0;
-
-      const tr =
-        document.createElement(
-          "tr"
-        );
-
-      tr.innerHTML = `
-
-        <td>${p.team}</td>
-
-        <td>${p.number}</td>
-
-        <td>
-          ${escapeHTML(p.name)}
-        </td>
-
-        <td>
-          ${formatMinutes(
-            p.minutes
-          )}
-        </td>
-
-        <td>${p.stats.pts}</td>
-        <td>${p.stats.reb}</td>
-        <td>${p.stats.ast}</td>
-        <td>${p.stats.stl}</td>
-        <td>${p.stats.blk}</td>
-        <td>${p.stats.to}</td>
-        <td>${p.stats.pf}</td>
-
-        <td>
-          ${p.stats.fgMade}/
-          ${p.stats.fgAttempt}
-        </td>
-
-        <td>${pct}%</td>
-
-        <td>
-          ${p.stats.plusMinus}
-        </td>
-
-        <td>${p.stats.off}</td>
-        <td>${p.stats.def}</td>
-
-      `;
-
-      body.appendChild(tr);
-
-    });
-
-
-  renderTeamSummary();
-  renderPlayerSelects();
-}
-
-
-function renderTeamSummary() {
-
-  const container =
-    document.getElementById(
-      "teamSummary"
-    );
-
-  if (!container) return;
-
-
-  const A = state.teamA.players;
-  const B = state.teamB.players;
-
-
-  container.innerHTML = `
-
-    <div class="summary-grid">
-
-      <div class="summary-card">
-        <span>${state.teamA.name} 득점</span>
-        <b>${teamStat("A","pts")}</b>
-      </div>
-
-      <div class="summary-card">
-        <span>${state.teamB.name} 득점</span>
-        <b>${teamStat("B","pts")}</b>
-      </div>
-
-      <div class="summary-card">
-        <span>${state.teamA.name} REB</span>
-        <b>${teamStat("A","reb")}</b>
-      </div>
-
-      <div class="summary-card">
-        <span>${state.teamB.name} REB</span>
-        <b>${teamStat("B","reb")}</b>
-      </div>
-
-      <div class="summary-card">
-        <span>${state.teamA.name} AST</span>
-        <b>${teamStat("A","ast")}</b>
-      </div>
-
-      <div class="summary-card">
-        <span>${state.teamB.name} AST</span>
-        <b>${teamStat("B","ast")}</b>
-      </div>
-
-    </div>
-
-  `;
-}
-
-
-/* =========================================================
-   선수 선택 목록
-   ========================================================= */
-
-function renderPlayerSelects() {
-
-  [
-    "detailPlayer",
-    "shotPlayer",
-    "reportPlayer"
-  ].forEach(id => {
-
-    const select =
-      document.getElementById(id);
-
-    if (!select) return;
-
-    const current =
-      select.value;
-
-    select.innerHTML =
-      `<option value="">
-        선수를 선택해주세요
-      </option>`;
-
-    allPlayers().forEach(p => {
-
-      const option =
-        document.createElement(
-          "option"
-        );
-
-      option.value =
-        p.id;
-
-      option.textContent =
-        `${p.team} · #${p.number} ${p.name}`;
-
-      select.appendChild(
-        option
-      );
-
-    });
-
-    select.value =
-      current;
-
-  });
-}
-
-
-/* =========================================================
-   선수 상세
-   ========================================================= */
-
-function renderPlayerDetail() {
-
-  const id =
-    document.getElementById(
-      "detailPlayer"
-    ).value;
-
-  const p =
-    findPlayer(id);
-
-  const container =
-    document.getElementById(
-      "playerDetail"
-    );
-
-  if (!container) return;
-
-  if (!p) {
-
-    container.innerHTML =
-      "선수를 선택하면 상세 기록이 표시됩니다.";
-
-    return;
-  }
-
-  const pct =
-    p.stats.fgAttempt
-      ? Math.round(
-          p.stats.fgMade /
-          p.stats.fgAttempt *
-          100
-        )
-      : 0;
-
-
-  container.innerHTML = `
-
-    <div class="summary-grid">
-
-      <div class="summary-card">
-        <span>PTS</span>
-        <b>${p.stats.pts}</b>
-      </div>
-
-      <div class="summary-card">
-        <span>REB</span>
-        <b>${p.stats.reb}</b>
-      </div>
-
-      <div class="summary-card">
-        <span>AST</span>
-        <b>${p.stats.ast}</b>
-      </div>
-
-      <div class="summary-card">
-        <span>STL</span>
-        <b>${p.stats.stl}</b>
-      </div>
-
-      <div class="summary-card">
-        <span>BLK</span>
-        <b>${p.stats.blk}</b>
-      </div>
-
-      <div class="summary-card">
-        <span>TO</span>
-        <b>${p.stats.to}</b>
-      </div>
-
-      <div class="summary-card">
-        <span>FG%</span>
-        <b>${pct}%</b>
-      </div>
-
-      <div class="summary-card">
-        <span>+/-</span>
-        <b>${p.stats.plusMinus}</b>
-      </div>
-
-    </div>
-
-  `;
-}
-
-
-/* =========================================================
-   선수 교체
-   ========================================================= */
-
-function substitute(type) {
-
-  const p =
-    findPlayer(
-      state.selectedPlayer
-    );
-
-  if (!p) {
-
-    alert(
-      "먼저 선수를 선택해주세요."
-    );
-
-    return;
-  }
-
-
-  if (type === "IN") {
-
-    const players =
-      state["team"+p.team]
-        .players;
-
-    const current =
-      players.filter(
-        x => x.onCourt
-      ).length;
-
-    if (
-      !p.onCourt &&
-      current >= mode
-    ) {
-
-      alert(
-        `현재 ${mode}명이 이미 출전 중입니다.`
-      );
-
-      return;
-    }
-
-    p.onCourt = true;
-
-  }
-
-  else {
-
-    p.onCourt = false;
-
-  }
-
-
-  renderSetup();
-  renderLivePlayers();
-
-  addLog(
-    `${p.name} · ${
-      type === "IN"
-        ? "출전"
-        : "벤치"
-    }`
-  );
-
-}
-
-
-/* =========================================================
-   경기 설정
-   ========================================================= */
-
-function startGame() {
-
-  state.game.name =
-    document.getElementById(
-      "gameName"
-    ).value;
-
-  state.game.place =
-    document.getElementById(
-      "gamePlace"
-    ).value;
-
-  state.game.minutes =
-    Number(
-      document.getElementById(
-        "gameMinutes"
-      ).value
-    ) || 10;
-
-  state.game.shotClock =
-    Number(
-      document.getElementById(
-        "shotClockSetting"
-      ).value
-    ) || 14;
-
-  state.game.target =
-    Number(
-      document.getElementById(
-        "targetScore"
-      ).value
-    ) || 21;
-
-  state.game.period =
-    Number(
-      document.getElementById(
-        "periodSetting"
-      ).value
-    ) || 1;
-
-
-  remainingSeconds =
-    state.game.minutes * 60;
-
-  shotRemaining =
-    state.game.shotClock;
-
-
-  renderClock();
-
-  document.getElementById(
-    "shotClock"
-  ).textContent =
-    shotRemaining;
-
-
-  showPage("live");
-
-  updateEverything();
-
-  addLog(
-    "경기 설정 저장"
-  );
-
-}
-
-
-/* =========================================================
-   경기 시계
-   ========================================================= */
-
-let clockInterval = null;
-
-let remainingSeconds = 600;
-
-let shotRemaining = 14;
-
-
-function startClock() {
-
-  if (clockInterval)
-    return;
-
-  clockInterval =
-    setInterval(() => {
-
-      if (
-        remainingSeconds > 0
-      ) {
-
-        remainingSeconds--;
-
-        renderClock();
-
-        updatePlayerMinutes();
-
-      }
-      else {
-
-        pauseClock();
-
-        addLog(
-          "경기 시간이 종료되었습니다."
-        );
-
-      }
-
-
-      if (
-        shotRemaining > 0
-      ) {
-
-        shotRemaining--;
-
-        document.getElementById(
-          "shotClock"
-        ).textContent =
-          shotRemaining;
-
-      }
-
-    },1000);
-
-}
-
-
-function pauseClock() {
-
-  clearInterval(
-    clockInterval
-  );
-
-  clockInterval =
-    null;
-}
-
-
-function renderClock() {
-
-  const min =
-    Math.floor(
-      remainingSeconds / 60
-    );
-
-  const sec =
-    remainingSeconds % 60;
-
-  document.getElementById(
-    "gameClock"
-  ).textContent =
-    `${String(min).padStart(2,"0")}:` +
-    `${String(sec).padStart(2,"0")}`;
-}
-
-
-function resetShotClock() {
-
-  shotRemaining =
-    Number(
-      state.game.shotClock
-    ) || 14;
-
-  document.getElementById(
-    "shotClock"
-  ).textContent =
-    shotRemaining;
-}
-
-
-function updatePlayerMinutes() {
-
-  allPlayers()
-    .filter(
-      p => p.onCourt
-    )
-    .forEach(p => {
-
-      p.minutes++;
-
-    });
-
-}
-
-
-/* =========================================================
-   로그
-   ========================================================= */
-
-function addLog(text) {
-
-  state.logs.unshift({
-
-    text,
-
-    time:
-      new Date()
-        .toLocaleTimeString()
-
-  });
-
-  if (
-    state.logs.length > 50
-  ) {
-
-    state.logs.pop();
-
-  }
-
-  renderLogs();
-}
-
-
-function renderLogs() {
-
-  const container =
-    document.getElementById(
-      "recentLogs"
-    );
-
-  if (!container) return;
-
-  if (!state.logs.length) {
-
-    container.innerHTML =
-      "아직 기록이 없습니다.";
-
-    return;
-  }
-
-  container.innerHTML =
-    state.logs
-      .map(
-        l => `
-
-          <div class="video-log">
-
-            <b>
-              ${escapeHTML(l.text)}
-            </b>
-
-            <small>
-              ${l.time}
-            </small>
-
-          </div>
-
-        `
-      )
-      .join("");
-
-}
-
-
-function clearLogs() {
-
-  state.logs = [];
-
-  renderLogs();
-
-}
-
-
-/* =========================================================
-   전체 UI
-   ========================================================= */
-
-function updateEverything() {
-
-  const elements = {
-
-    liveTeamA:
-      state.teamA.name,
-
-    liveTeamB:
-      state.teamB.name,
-
-    sideAName:
-      state.teamA.name,
-
-    sideBName:
-      state.teamB.name,
-
-    sideAScore:
-      state.score.A,
-
-    sideBScore:
-      state.score.B,
-
-    scoreA:
-      state.score.A,
-
-    scoreB:
-      state.score.B,
-
-    foulA:
-      state.fouls.A,
-
-    foulB:
-      state.fouls.B,
-
-    infoGame:
-      state.game.name,
-
-    infoPlace:
-      state.game.place ||
-      "미입력",
-
-    infoMode:
-      `${mode}대${mode}`,
-
-    modeBadge:
-      `${mode}대${mode}`,
-
-    comparePtsA:
-      teamStat("A","pts"),
-
-    comparePtsB:
-      teamStat("B","pts"),
-
-    compareRebA:
-      teamStat("A","reb"),
-
-    compareRebB:
-      teamStat("B","reb"),
-
-    compareAstA:
-      teamStat("A","ast"),
-
-    compareAstB:
-      teamStat("B","ast")
-
-  };
-
-
-  Object.entries(
-    elements
-  ).forEach(
-    ([id,value]) => {
-
-      const el =
-        document.getElementById(id);
-
-      if (el)
-        el.textContent =
-          value;
-
-    }
-  );
-
-
-  const selected =
-    findPlayer(
-      state.selectedPlayer
-    );
-
-  if (selected) {
-
-    document.getElementById(
-      "selectedTitle"
-    ).textContent =
-      `#${selected.number} ${selected.name}`;
-
-    document.getElementById(
-      "selectedStats"
-    ).innerHTML = `
-
-      출전 ${formatMinutes(selected.minutes)}
-      · PTS ${selected.stats.pts}
-      · REB ${selected.stats.reb}
-      · AST ${selected.stats.ast}
-      · STL ${selected.stats.stl}
-      · BLK ${selected.stats.blk}
-      · TO ${selected.stats.to}
-      · PF ${selected.stats.pf}
-
-    `;
-
-  }
-
-
-  renderLivePlayers();
-  renderLogs();
-  renderMiniCourt();
-  renderShotChart();
-  renderAnalysis();
-
-}
-
-
-/* =========================================================
-   팀 통계
-   ========================================================= */
-
-function teamStat(
-  team,
-  key
-) {
-
-  return state["team"+team]
-    .players
-    .reduce(
-      (sum,p) =>
-        sum +
-        (p.stats[key] || 0),
-      0
-    );
-
-}
-
-
-/* =========================================================
-   영상
-   ========================================================= */
-
-function loadVideo(event) {
-
-  const file =
-    event.target.files[0];
-
-  if (!file) return;
-
-  const video =
-    document.getElementById(
-      "videoPlayer"
-    );
-
-  video.src =
-    URL.createObjectURL(file);
-
-}
-
-
-function videoRate(rate) {
-
-  const video =
-    document.getElementById(
-      "videoPlayer"
-    );
-
-  video.playbackRate =
-    rate;
-
-}
-
-
-function videoMark(type) {
-
-  const video =
-    document.getElementById(
-      "videoPlayer"
-    );
-
-  const time =
-    video.currentTime || 0;
-
-  state.videoMarks.push({
-
-    type,
-    time
-
-  });
-
-  renderVideoMarks();
-
-}
-
-
-function renderVideoMarks() {
-
-  const container =
-    document.getElementById(
-      "videoLogs"
-    );
-
-  if (!container) return;
-
-  if (
-    !state.videoMarks.length
-  ) {
-
-    container.innerHTML =
-      "아직 표시된 장면이 없습니다.";
-
-    return;
-
-  }
-
-
-  container.innerHTML =
-    state.videoMarks
-      .map(
-        m => `
-
-          <div class="video-log">
-
-            <b>
-              ${escapeHTML(m.type)}
-            </b>
-
-            <span>
-              ${formatVideoTime(
-                m.time
-              )}
-            </span>
-
-          </div>
-
-        `
-      )
-      .join("");
-
-}
-
-
-function formatVideoTime(
-  seconds
-) {
-
-  const min =
-    Math.floor(
-      seconds / 60
-    );
-
-  const sec =
-    Math.floor(
-      seconds % 60
-    );
-
-  return (
-    min +
-    ":" +
-    String(sec)
-      .padStart(2,"0")
-  );
-
-}
-
-
-/* =========================================================
-   전력분석
-   ========================================================= */
-
-function renderAnalysis() {
-
-  const ptsA =
-    teamStat("A","pts");
-
-  const ptsB =
-    teamStat("B","pts");
-
-  const rebA =
-    teamStat("A","reb");
-
-  const rebB =
-    teamStat("B","reb");
-
-  const astA =
-    teamStat("A","ast");
-
-  const astB =
-    teamStat("B","ast");
-
-
-  const offense =
-    document.getElementById(
-      "offenseAnalysis"
-    );
-
-  if (offense) {
-
-    offense.innerHTML = `
-
-      <div class="summary-grid">
-
-        <div class="summary-card">
-
-          <span>
-            ${state.teamA.name}
-          </span>
-
-          <b>
-            ${ptsA}점
-          </b>
-
-        </div>
-
-        <div class="summary-card">
-
-          <span>
-            ${state.teamB.name}
-          </span>
-
-          <b>
-            ${ptsB}점
-          </b>
-
-        </div>
-
-      </div>
-
-    `;
-
-  }
-
-
-  const defense =
-    document.getElementById(
-      "defenseAnalysis"
-    );
-
-  if (defense) {
-
-    defense.innerHTML = `
-
-      ${state.teamA.name}
-      · REB ${rebA}
-      · AST ${astA}
-
-      <br><br>
-
-      ${state.teamB.name}
-      · REB ${rebB}
-      · AST ${astB}
-
-    `;
-
-  }
-
-
-  const lineup =
-    document.getElementById(
-      "lineupAnalysis"
-    );
-
-  if (lineup) {
-
-    lineup.innerHTML = `
-
-      <b>
-        ${state.teamA.name}
-      </b>
-
-      <br>
-
-      ${
-        state.teamA.players
-          .filter(
-            p => p.onCourt
-          )
-          .map(
-            p =>
-              `#${p.number} ${p.name}`
-          )
-          .join(", ")
-        || "없음"
-      }
-
-      <br><br>
-
-      <b>
-        ${state.teamB.name}
-      </b>
-
-      <br>
-
-      ${
-        state.teamB.players
-          .filter(
-            p => p.onCourt
-          )
-          .map(
-            p =>
-              `#${p.number} ${p.name}`
-          )
-          .join(", ")
-        || "없음"
-      }
-
-    `;
-
-  }
-
-
-  const coach =
-    document.getElementById(
-      "coachInsight"
-    );
-
-  if (coach) {
-
-    let text =
-      "경기 기록이 쌓이면 분석 결과가 표시됩니다.";
-
-    if (ptsA > ptsB) {
-
-      text =
-        `${state.teamA.name}이 ` +
-        `${ptsA-ptsB}점 앞서고 있습니다. ` +
-        `공격 우위를 유지하세요.`;
-
-    }
-
-    else if (ptsB > ptsA) {
-
-      text =
-        `${state.teamB.name}이 ` +
-        `${ptsB-ptsA}점 앞서고 있습니다. ` +
-        `수비 집중이 필요합니다.`;
-
-    }
-
-    coach.textContent =
-      text;
-
-  }
-
-
-  const chart =
-    document.getElementById(
-      "performanceChart"
-    );
-
-  if (chart) {
-
-    chart.innerHTML = `
-
-      <div class="summary-grid">
-
-        <div class="summary-card">
-          <span>A PTS</span>
-          <b>${ptsA}</b>
-        </div>
-
-        <div class="summary-card">
-          <span>B PTS</span>
-          <b>${ptsB}</b>
-        </div>
-
-        <div class="summary-card">
-          <span>A AST</span>
-          <b>${astA}</b>
-        </div>
-
-        <div class="summary-card">
-          <span>B AST</span>
-          <b>${astB}</b>
-        </div>
-
-      </div>
-
-    `;
-
-  }
-
-}
-
-
-/* =========================================================
-   리포트
-   ========================================================= */
-
-function renderReport() {
-
-  const select =
-    document.getElementById(
-      "reportPlayer"
-    );
-
-  if (!select) return;
-
-  const p =
-    findPlayer(
-      select.value
-    );
-
-  const container =
-    document.getElementById(
-      "playerReport"
-    );
-
-  if (!container) return;
-
-  if (!p) {
-
-    container.innerHTML =
-      "선수를 선택하면 리포트가 표시됩니다.";
-
-    return;
-
-  }
-
-
-  const fgPct =
-    p.stats.fgAttempt
-      ? Math.round(
-          p.stats.fgMade /
-          p.stats.fgAttempt *
-          100
-        )
-      : 0;
-
-
-  container.innerHTML = `
-
-    <h3>
-      #${p.number}
-      ${escapeHTML(p.name)}
-    </h3>
-
-    <div class="report-stat">
-
-      <div class="summary-card">
-        <span>PTS</span>
-        <b>${p.stats.pts}</b>
-      </div>
-
-      <div class="summary-card">
-        <span>FG%</span>
-        <b>${fgPct}%</b>
-      </div>
-
-      <div class="summary-card">
-        <span>REB</span>
-        <b>${p.stats.reb}</b>
-      </div>
-
-      <div class="summary-card">
-        <span>AST</span>
-        <b>${p.stats.ast}</b>
-      </div>
-
-    </div>
-
-  `;
-
-}
-
-
-function generateReport() {
-
-  const winner =
-    state.score.A >
-    state.score.B
-
-      ? state.teamA.name
-
-      : state.score.B >
-        state.score.A
-
-        ? state.teamB.name
-
-        : "동점";
-
-
-  const container =
-    document.getElementById(
-      "gameReport"
-    );
-
-  if (!container) return;
-
-
-  container.innerHTML = `
-
-    <h3>
-      경기 분석 결과
-    </h3>
-
-    <p>
-      ${state.teamA.name}
-      <b>${state.score.A}</b>
-      :
-      <b>${state.score.B}</b>
-      ${state.teamB.name}
-    </p>
-
-    <p>
-      현재 우세:
-      <b>${winner}</b>
-    </p>
-
-    <p>
-      총 슛:
-      ${state.shots.length}회
-    </p>
-
-    <p>
-      등록 선수:
-      ${allPlayers().length}명
-    </p>
-
-    <p>
-      분석 로그:
-      ${state.logs.length}개
-    </p>
-
-  `;
-
-}
-
-
-/* =========================================================
-   저장
-   ========================================================= */
-
-function saveGame() {
-
-  const data = {
-
-    mode,
-
-    state,
-
-    remainingSeconds,
-
-    shotRemaining
-
-  };
-
-  localStorage.setItem(
-    "COURTVISION_PRO_GAME",
-    JSON.stringify(data)
-  );
-
-  addLog(
-    "경기 데이터 저장"
-  );
-
-  alert(
-    "경기 데이터가 저장되었습니다."
-  );
-
-}
-
-
-/* =========================================================
-   초기화
-   ========================================================= */
-
-function resetAll() {
-
-  if (
-    !confirm(
-      "모든 경기 데이터를 초기화할까요?"
-    )
-  ) return;
-
-  localStorage.removeItem(
-    "COURTVISION_PRO_GAME"
-  );
-
-  location.reload();
-
-}
-
-
-/* =========================================================
-   페이지 이동
-   ========================================================= */
-
-function showPage(page) {
-
-  document.querySelectorAll(
-    ".page"
-  ).forEach(p => {
-
-    p.classList.add(
-      "hidden"
-    );
-
-  });
-
-
-  const target =
-    document.getElementById(page);
-
-  if (target) {
-
-    target.classList.remove(
-      "hidden"
-    );
-
-  }
-
-
-  document.querySelectorAll(
-    "nav button"
-  ).forEach(btn => {
-
-    btn.classList.toggle(
-      "active",
-      btn.dataset.page === page
-    );
-
-  });
-
-
-  if (page === "shots") {
-
-    renderPlayerSelects();
-    renderShotChart();
-
-  }
-
-
-  if (page === "records") {
-
-    renderRecords();
-
-  }
-
-
-  if (page === "report") {
-
-    renderPlayerSelects();
-    renderReport();
-
-  }
-
-}
-
-
-document.querySelectorAll(
-  "nav button"
-).forEach(btn => {
-
-  btn.addEventListener(
-    "click",
-    () => {
-
-      showPage(
-        btn.dataset.page
-      );
-
-    }
-  );
-
-});
-
-
-/* =========================================================
-   선수 설정 화면
-   ========================================================= */
-
-function toggleSetup() {
-
-  const setup =
-    document.getElementById(
-      "setup"
-    );
-
-  if (
-    setup.classList.contains(
-      "hidden"
-    )
-  ) {
-
-    setup.classList.remove(
-      "hidden"
-    );
-
-    document.querySelectorAll(
-      ".page"
-    ).forEach(p => {
-
-      if (p.id !== "setup") {
-
-        p.classList.add(
-          "hidden"
-        );
-
-      }
-
-    });
-
-  }
-
-  else {
-
-    showPage("live");
-
-  }
-
-}
-
-
-/* =========================================================
-   CSV
-   ========================================================= */
-
-function downloadCSV() {
-
-  let csv =
-    "팀,번호,선수,MIN,PTS,REB,AST,STL,BLK,TO,PF,FG,FG%,+/-\n";
-
-
-  allPlayers().forEach(p => {
-
-    const pct =
-      p.stats.fgAttempt
-        ? Math.round(
-            p.stats.fgMade /
-            p.stats.fgAttempt *
-            100
-          )
-        : 0;
-
-
-    csv += [
-
-      p.team,
-      p.number,
-
-      `"${String(
-        p.name
-      ).replace(
-        /"/g,
-        '""'
-      )}"`,
-
-      formatMinutes(
-        p.minutes
-      ),
-
-      p.stats.pts,
-      p.stats.reb,
-      p.stats.ast,
-      p.stats.stl,
-      p.stats.blk,
-      p.stats.to,
-      p.stats.pf,
-
-      `${p.stats.fgMade}/${p.stats.fgAttempt}`,
-
-      pct + "%",
-
-      p.stats.plusMinus
-
-    ].join(",") + "\n";
-
-  });
-
-
-  const blob =
-    new Blob(
-      ["\ufeff" + csv],
-      {
-        type:
-          "text/csv;charset=utf-8"
-      }
-    );
-
-
-  const url =
-    URL.createObjectURL(
-      blob
-    );
-
-
-  const a =
-    document.createElement(
-      "a"
-    );
-
-  a.href = url;
-
-  a.download =
-    "COURTVISION_PRO_RECORDS.csv";
-
-  document.body.appendChild(a);
-
-  a.click();
-
-  a.remove();
-
-  URL.revokeObjectURL(
-    url
-  );
-
-}
-
-
-/* =========================================================
-   시간 포맷
-   ========================================================= */
-
-function formatMinutes(
-  seconds
-) {
-
-  const min =
-    Math.floor(
-      (seconds || 0) / 60
-    );
-
-  const sec =
-    Math.floor(
-      (seconds || 0) % 60
-    );
-
-  return (
-    String(min)
-      .padStart(2,"0") +
-    ":" +
-    String(sec)
-      .padStart(2,"0")
-  );
-
-}
-
-
-/* =========================================================
-   저장 데이터 로드
-   ========================================================= */
-
-function loadSavedGame() {
-
-  const raw =
-    localStorage.getItem(
-      "COURTVISION_PRO_GAME"
-    );
-
-  if (!raw) return;
-
-  try {
-
-    const saved =
-      JSON.parse(raw);
-
-    mode =
-      saved.mode || 3;
-
-    state =
-      saved.state || state;
-
-    remainingSeconds =
-      saved.remainingSeconds ??
-      (
-        state.game.minutes *
-        60
-      );
-
-    shotRemaining =
-      saved.shotRemaining ??
-      state.game.shotClock;
-
-  }
-
-  catch (error) {
-
-    console.error(
-      "저장 데이터 로드 실패:",
-      error
-    );
-
-  }
-
-}
-
-
-/* =========================================================
-   HTML 안전 처리
-   ========================================================= */
-
-function escapeHTML(value) {
-
-  return String(value ?? "")
-    .replace(
-      /&/g,
-      "&amp;"
-    )
-    .replace(
-      /</g,
-      "&lt;"
-    )
-    .replace(
-      />/g,
-      "&gt;"
-    )
-    .replace(
-      /"/g,
-      "&quot;"
-    )
-    .replace(
-      /'/g,
-      "&#039;"
-    );
-
-}
-
-
-/* =========================================================
-   시작
-   ========================================================= */
-
-loadSavedGame();
-
-if (
-  !state.teamA.players.length ||
-  !state.teamB.players.length
-) {
-
-  initPlayers();
-
-}
-
-
-const setupValues = {
-
-  teamAName:
-    state.teamA.name,
-
-  teamBName:
-    state.teamB.name,
-
-  gameName:
-    state.game.name,
-
-  gamePlace:
-    state.game.place,
-
-  gameMinutes:
-    state.game.minutes,
-
-  shotClockSetting:
-    state.game.shotClock,
-
-  targetScore:
-    state.game.target
-
-};
-
-
-Object.entries(
-  setupValues
-).forEach(
-  ([id,value]) => {
-
-    const el =
-      document.getElementById(id);
-
-    if (el)
-      el.value = value;
-
-  }
-);
-
-
-document.getElementById(
-  "mode3"
-).classList.toggle(
-  "active",
-  mode === 3
-);
-
-document.getElementById(
-  "mode5"
-).classList.toggle(
-  "active",
-  mode === 5
-);
-
-
-renderSetup();
-renderPlayerSelects();
-renderLivePlayers();
-renderLogs();
-renderClock();
-updateEverything();
