@@ -1,131 +1,638 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport"
-        content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta charset="UTF-8">
+
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover"
+  >
+
+  <meta name="theme-color" content="#020811">
 
   <title>COURTVISION PRO</title>
 
-  <link rel="stylesheet" href="./style.css?v=20260904-final2">
+  <link rel="stylesheet" href="style.css">
 </head>
 
 <body>
 
-<header class="app-header">
+  <!-- =========================================================
+       COURTVISION PRO
+       Professional Basketball Analytics
+       ========================================================= -->
 
-  <div class="brand">
-    <div class="brand-mark">CV</div>
+  <div id="app">
 
-    <div class="brand-text">
-      <strong>COURTVISION</strong>
-      <small>PRO BASKETBALL ANALYTICS</small>
-    </div>
-  </div>
+    <!-- =======================================================
+         TOP HEADER
+         ======================================================= -->
 
-  <div class="mode-switch">
-    <button type="button"
-            data-mode="3v3"
-            class="active">
-      3대3
-    </button>
+    <header class="top-header">
 
-    <button type="button"
-            data-mode="5v5">
-      5대5
-    </button>
-  </div>
+      <div class="brand">
 
-  <div class="header-actions">
+        <div class="brand-ball">🏀</div>
 
-    <button type="button"
-            id="setup">
-      선수 설정
-    </button>
+        <div class="brand-text">
+          <div class="brand-name">
+            COURTVISION <span>PRO</span>
+          </div>
 
-    <button type="button"
-            id="save"
-            class="blue">
-      경기 저장
-    </button>
+          <div class="brand-sub">
+            BASKETBALL ANALYTICS
+          </div>
+        </div>
 
-    <button type="button"
-            id="reset"
-            class="danger">
-      초기화
-    </button>
-
-  </div>
-
-</header>
+      </div>
 
 
-<nav class="main-nav">
+      <!-- 3v3 / 5v5 -->
 
-  <button type="button"
+      <div class="mode-switch" id="modeSwitch">
+
+        <button
+          type="button"
+          class="mode-btn active"
+          data-mode="3v3"
+        >
+          3대3
+        </button>
+
+        <button
+          type="button"
+          class="mode-btn"
+          data-mode="5v5"
+        >
+          5대5
+        </button>
+
+      </div>
+
+
+      <!-- MAIN NAV -->
+
+      <nav class="main-nav" id="mainNav">
+
+        <button
+          type="button"
+          class="nav-btn active"
           data-page="live"
-          class="active">
-    라이브
-  </button>
+        >
+          라이브
+        </button>
 
-  <button type="button"
-          data-page="records">
-    기록
-  </button>
+        <button
+          type="button"
+          class="nav-btn"
+          data-page="records"
+        >
+          기록
+        </button>
 
-  <button type="button"
-          data-page="shots">
-    슛차트
-  </button>
+        <button
+          type="button"
+          class="nav-btn"
+          data-page="shots"
+        >
+          슛차트
+        </button>
 
-  <button type="button"
-          data-page="video">
-    영상 분석
-  </button>
+        <button
+          type="button"
+          class="nav-btn"
+          data-page="video"
+        >
+          영상 분석
+        </button>
 
-  <button type="button"
-          data-page="analysis">
-    전력분석
-  </button>
+        <button
+          type="button"
+          class="nav-btn"
+          data-page="analysis"
+        >
+          전력분석
+        </button>
 
-  <button type="button"
-          data-page="report">
-    리포트
-  </button>
+        <button
+          type="button"
+          class="nav-btn"
+          data-page="report"
+        >
+          리포트
+        </button>
 
-  <button type="button"
-          data-page="league">
-    리그
-  </button>
+        <button
+          type="button"
+          class="nav-btn"
+          data-page="league"
+        >
+          리그
+        </button>
 
-</nav>
-
-
-<main id="app">
-
-  <section id="live"></section>
-
-  <section id="records"></section>
-
-  <section id="shots"></section>
-
-  <section id="video"></section>
-
-  <section id="analysis"></section>
-
-  <section id="report"></section>
-
-  <section id="league"></section>
-
-</main>
-
-
-<div id="modal"></div>
-
-<div id="toast"></div>
+      </nav>
 
 
-<script src="./app.js?v=20260904-final2"></script>
+      <!-- HEADER ACTIONS -->
+
+      <div class="header-actions">
+
+        <button
+          type="button"
+          class="header-btn"
+          id="playerSetupBtn"
+        >
+          선수 설정
+        </button>
+
+        <button
+          type="button"
+          class="header-btn primary"
+          id="saveGameBtn"
+        >
+          경기 저장
+        </button>
+
+        <button
+          type="button"
+          class="header-btn danger"
+          id="resetBtn"
+        >
+          초기화
+        </button>
+
+      </div>
+
+    </header>
+
+
+    <!-- =======================================================
+         PAGE ROOT
+         ======================================================= -->
+
+    <main id="pageRoot"></main>
+
+
+    <!-- =======================================================
+         GLOBAL TOAST
+         ======================================================= -->
+
+    <div
+      id="toast"
+      class="toast"
+      aria-live="polite"
+    ></div>
+
+
+    <!-- =======================================================
+         PLAYER / GAME SETUP MODAL
+         ======================================================= -->
+
+    <div
+      id="setupModal"
+      class="modal-overlay hidden"
+    >
+
+      <div class="setup-modal">
+
+        <div class="modal-header">
+
+          <div>
+            <div class="modal-kicker">
+              COURTVISION PRO
+            </div>
+
+            <h2>경기 / 선수 설정</h2>
+
+            <p id="setupModeText">
+              3대3 · 3명 로스터
+            </p>
+          </div>
+
+          <button
+            type="button"
+            class="icon-btn"
+            id="closeSetupBtn"
+            aria-label="닫기"
+          >
+            ×
+          </button>
+
+        </div>
+
+
+        <div class="setup-info">
+          경기 정보를 입력하고 선수 명단을 등록하세요.
+          <br>
+          저장 후 라이브 화면에서 바로 기록할 수 있습니다.
+        </div>
+
+
+        <!-- GAME INFO -->
+
+        <section class="setup-section">
+
+          <div class="setup-grid two">
+
+            <label class="field">
+              <span>경기명</span>
+              <input
+                id="gameNameInput"
+                type="text"
+                placeholder="예: 설천고 A vs 설천고 B"
+                autocomplete="off"
+              >
+            </label>
+
+            <label class="field">
+              <span>대회명</span>
+              <input
+                id="tournamentInput"
+                type="text"
+                placeholder="예: 설천고 농구 리그"
+                autocomplete="off"
+              >
+            </label>
+
+          </div>
+
+        </section>
+
+
+        <!-- TEAM INFO -->
+
+        <section class="setup-section">
+
+          <div class="setup-grid two">
+
+            <!-- HOME -->
+
+            <div class="team-setup home">
+
+              <div class="team-title">
+
+                <span class="team-dot home-dot"></span>
+
+                <strong>HOME</strong>
+
+              </div>
+
+              <label class="field">
+                <span>팀 이름</span>
+
+                <input
+                  id="homeTeamInput"
+                  type="text"
+                  value="HOME"
+                  autocomplete="off"
+                >
+              </label>
+
+
+              <div
+                id="homeRoster"
+                class="roster-list"
+              ></div>
+
+            </div>
+
+
+            <!-- AWAY -->
+
+            <div class="team-setup away">
+
+              <div class="team-title">
+
+                <span class="team-dot away-dot"></span>
+
+                <strong>AWAY</strong>
+
+              </div>
+
+              <label class="field">
+                <span>팀 이름</span>
+
+                <input
+                  id="awayTeamInput"
+                  type="text"
+                  value="AWAY"
+                  autocomplete="off"
+                >
+              </label>
+
+
+              <div
+                id="awayRoster"
+                class="roster-list"
+              ></div>
+
+            </div>
+
+          </div>
+
+        </section>
+
+
+        <!-- MODAL FOOTER -->
+
+        <div class="modal-footer">
+
+          <button
+            type="button"
+            class="btn secondary"
+            id="cancelSetupBtn"
+          >
+            취소
+          </button>
+
+          <button
+            type="button"
+            class="btn primary"
+            id="applySetupBtn"
+          >
+            설정 저장
+          </button>
+
+        </div>
+
+      </div>
+
+    </div>
+
+
+    <!-- =======================================================
+         SHOT RECORD MODAL
+         ======================================================= -->
+
+    <div
+      id="shotModal"
+      class="modal-overlay hidden"
+    >
+
+      <div class="shot-modal">
+
+        <div class="modal-header">
+
+          <div>
+
+            <div class="modal-kicker">
+              SHOT EVENT
+            </div>
+
+            <h2>슛 기록</h2>
+
+            <p id="shotModalPlayer">
+              선수를 선택하세요.
+            </p>
+
+          </div>
+
+          <button
+            type="button"
+            class="icon-btn"
+            id="closeShotModalBtn"
+          >
+            ×
+          </button>
+
+        </div>
+
+
+        <!-- SHOT RESULT -->
+
+        <div class="shot-result-grid">
+
+          <button
+            type="button"
+            class="shot-result success"
+            data-shot-result="made"
+          >
+            <span>●</span>
+            슛 성공
+          </button>
+
+          <button
+            type="button"
+            class="shot-result miss"
+            data-shot-result="missed"
+          >
+            <span>×</span>
+            슛 실패
+          </button>
+
+        </div>
+
+
+        <!-- SHOT TYPE -->
+
+        <div class="modal-subtitle">
+          슛 종류
+        </div>
+
+        <div class="shot-type-grid">
+
+          <button
+            type="button"
+            class="shot-type-btn"
+            data-shot-type="FT"
+          >
+            자유투
+          </button>
+
+          <button
+            type="button"
+            class="shot-type-btn"
+            data-shot-type="2PT"
+          >
+            2점 필드골
+          </button>
+
+          <button
+            type="button"
+            class="shot-type-btn"
+            data-shot-type="3PT"
+          >
+            3점 필드골
+          </button>
+
+        </div>
+
+
+        <!-- COURT -->
+
+        <div class="shot-location-area">
+
+          <div class="modal-subtitle">
+            실제 슛 위치
+          </div>
+
+          <p class="helper-text">
+            성공/실패와 슛 종류를 선택한 뒤 실제 코트 위치를 클릭하세요.
+          </p>
+
+          <div
+            id="shotModalCourt"
+            class="shot-court"
+          ></div>
+
+        </div>
+
+
+        <div class="modal-footer">
+
+          <button
+            type="button"
+            class="btn secondary"
+            id="cancelShotBtn"
+          >
+            취소
+          </button>
+
+          <button
+            type="button"
+            class="btn primary"
+            id="confirmShotBtn"
+          >
+            슛 기록
+          </button>
+
+        </div>
+
+      </div>
+
+    </div>
+
+
+    <!-- =======================================================
+         PASS MODAL
+         ======================================================= -->
+
+    <div
+      id="passModal"
+      class="modal-overlay hidden"
+    >
+
+      <div class="small-modal">
+
+        <div class="modal-header">
+
+          <div>
+
+            <div class="modal-kicker">
+              PASS EVENT
+            </div>
+
+            <h2>패스 기록</h2>
+
+            <p id="passFromText">
+              패스한 선수를 선택하세요.
+            </p>
+
+          </div>
+
+          <button
+            type="button"
+            class="icon-btn"
+            id="closePassModalBtn"
+          >
+            ×
+          </button>
+
+        </div>
+
+
+        <div
+          id="passReceiverList"
+          class="pass-receiver-list"
+        ></div>
+
+      </div>
+
+    </div>
+
+
+    <!-- =======================================================
+         CONFIRM MODAL
+         ======================================================= -->
+
+    <div
+      id="confirmModal"
+      class="modal-overlay hidden"
+    >
+
+      <div class="small-modal">
+
+        <div class="modal-header">
+
+          <div>
+            <div class="modal-kicker">
+              CONFIRM
+            </div>
+
+            <h2 id="confirmTitle">
+              확인
+            </h2>
+          </div>
+
+          <button
+            type="button"
+            class="icon-btn"
+            id="closeConfirmBtn"
+          >
+            ×
+          </button>
+
+        </div>
+
+        <p
+          id="confirmMessage"
+          class="confirm-message"
+        ></p>
+
+        <div class="modal-footer">
+
+          <button
+            type="button"
+            class="btn secondary"
+            id="confirmCancelBtn"
+          >
+            취소
+          </button>
+
+          <button
+            type="button"
+            class="btn danger"
+            id="confirmOkBtn"
+          >
+            확인
+          </button>
+
+        </div>
+
+      </div>
+
+    </div>
+
+
+    <!-- =======================================================
+         HIDDEN FILE INPUT
+         ======================================================= -->
+
+    <input
+      id="videoFileInput"
+      type="file"
+      accept="video/*"
+      hidden
+    >
+
+  </div>
+
+
+  <!-- =========================================================
+       APP SCRIPT
+       ========================================================= -->
+
+  <script src="app.js"></script>
 
 </body>
 </html>
