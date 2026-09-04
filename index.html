@@ -1,75 +1,277 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>설천고 COURTVISION PRO</title>
-  <link rel="stylesheet" href="style.css">
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <meta
+        name="description"
+        content="COURTVISION PRO - 농구 경기 전력분석 시스템"
+    >
+
+    <title>COURTVISION PRO</title>
+
+    <!-- 메인 스타일 -->
+    <link
+        rel="stylesheet"
+        href="./style.css"
+    >
 </head>
 
 <body>
 
-<header>
+    <!-- =====================================================
+         APP
+    ====================================================== -->
+    <div id="app">
 
-  <div class="brand">
-    🏀
-    <b>COURTVISION<br>PRO</b>
-    <small>BASKETBALL ANALYTICS SYSTEM</small>
-  </div>
+        <!-- =================================================
+             TOP HEADER
+        ================================================== -->
+        <header class="topbar">
 
-  <div class="modes">
-    <button class="active" data-mode="3v3">3대3</button>
-    <button data-mode="5v5">5대5</button>
-  </div>
+            <!-- 로고 -->
+            <div class="brand">
 
-  <nav>
-    <button class="active" data-page="live">라이브</button>
-    <button data-page="records">기록</button>
-    <button data-page="shots">슛차트</button>
-    <button data-page="video">영상 분석</button>
-    <button data-page="analysis">전력분석</button>
-    <button data-page="reports">리포트</button>
-    <button data-page="league">리그</button>
-  </nav>
+                <div class="brand-mark">
+                    CV
+                </div>
 
-  <div class="actions">
-    <button id="players">선수 설정</button>
-    <button id="save">경기 저장</button>
-    <button id="reset" class="danger">초기화</button>
-  </div>
+                <div class="brand-text">
+                    <strong>COURTVISION</strong>
+                    <span>PRO BASKETBALL ANALYTICS</span>
+                </div>
 
-</header>
+            </div>
 
-<main id="app"></main>
 
-<dialog id="dlg">
+            <!-- 3대3 / 5대5 -->
+            <div class="mode-switch">
 
-  <div class="dh">
-    <h2>선수 설정</h2>
-    <button onclick="dlg.close()">×</button>
-  </div>
+                <button
+                    type="button"
+                    class="mode-btn active"
+                    data-mode="3v3"
+                >
+                    3대3
+                </button>
 
-  <div class="setup">
+                <button
+                    type="button"
+                    class="mode-btn"
+                    data-mode="5v5"
+                >
+                    5대5
+                </button>
 
-    <section>
-      <h3>TEAM A · 설천고</h3>
-      <div id="pa"></div>
-    </section>
+            </div>
 
-    <section>
-      <h3>TEAM B · 상대팀</h3>
-      <div id="pb"></div>
-    </section>
 
-  </div>
+            <!-- 상단 기능 -->
+            <div class="top-actions">
 
-  <button class="primary" id="savePlayers">
-    설정 저장
-  </button>
+                <button
+                    type="button"
+                    class="ghost-btn"
+                    id="setupBtn"
+                >
+                    선수 설정
+                </button>
 
-</dialog>
+                <button
+                    type="button"
+                    class="primary-btn"
+                    id="saveBtn"
+                >
+                    경기 저장
+                </button>
 
-<script src="app.js"></script>
+                <button
+                    type="button"
+                    class="danger-btn"
+                    id="resetBtn"
+                >
+                    초기화
+                </button>
+
+            </div>
+
+        </header>
+
+
+        <!-- =================================================
+             NAVIGATION
+        ================================================== -->
+        <nav class="main-nav">
+
+            <button
+                type="button"
+                class="nav-btn active"
+                data-page="live"
+            >
+                라이브
+            </button>
+
+            <button
+                type="button"
+                class="nav-btn"
+                data-page="records"
+            >
+                기록
+            </button>
+
+            <button
+                type="button"
+                class="nav-btn"
+                data-page="shots"
+            >
+                슛차트
+            </button>
+
+            <button
+                type="button"
+                class="nav-btn"
+                data-page="video"
+            >
+                영상 분석
+            </button>
+
+            <button
+                type="button"
+                class="nav-btn"
+                data-page="analysis"
+            >
+                전력분석
+            </button>
+
+            <button
+                type="button"
+                class="nav-btn"
+                data-page="report"
+            >
+                리포트
+            </button>
+
+            <button
+                type="button"
+                class="nav-btn"
+                data-page="league"
+            >
+                리그
+            </button>
+
+        </nav>
+
+
+        <!-- =================================================
+             MAIN
+        ================================================== -->
+        <main class="main-content">
+
+            <!-- =============================================
+                 LIVE
+            ============================================== -->
+            <section
+                id="page-live"
+                class="page active"
+            >
+                <!-- app.js에서 생성 -->
+            </section>
+
+
+            <!-- =============================================
+                 RECORDS
+            ============================================== -->
+            <section
+                id="page-records"
+                class="page"
+            >
+                <!-- app.js에서 생성 -->
+            </section>
+
+
+            <!-- =============================================
+                 SHOT CHART
+            ============================================== -->
+            <section
+                id="page-shots"
+                class="page"
+            >
+                <!-- app.js에서 생성 -->
+            </section>
+
+
+            <!-- =============================================
+                 VIDEO ANALYSIS
+            ============================================== -->
+            <section
+                id="page-video"
+                class="page"
+            >
+                <!-- app.js에서 생성 -->
+            </section>
+
+
+            <!-- =============================================
+                 TEAM ANALYSIS
+            ============================================== -->
+            <section
+                id="page-analysis"
+                class="page"
+            >
+                <!-- app.js에서 생성 -->
+            </section>
+
+
+            <!-- =============================================
+                 REPORT
+            ============================================== -->
+            <section
+                id="page-report"
+                class="page"
+            >
+                <!-- app.js에서 생성 -->
+            </section>
+
+
+            <!-- =============================================
+                 LEAGUE
+            ============================================== -->
+            <section
+                id="page-league"
+                class="page"
+            >
+                <!-- app.js에서 생성 -->
+            </section>
+
+        </main>
+
+    </div>
+
+
+    <!-- =====================================================
+         MODAL
+    ====================================================== -->
+    <div id="modalRoot"></div>
+
+
+    <!-- =====================================================
+         TOAST
+    ====================================================== -->
+    <div id="toast"></div>
+
+
+    <!-- =====================================================
+         JAVASCRIPT
+    ====================================================== -->
+    <script
+        src="./app.js"
+        defer
+    ></script>
 
 </body>
 </html>
