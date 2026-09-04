@@ -1,45 +1,46 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8">
-
+  <meta charset="UTF-8" />
   <meta
     name="viewport"
     content="width=device-width, initial-scale=1.0, maximum-scale=1.0, viewport-fit=cover"
-  >
-
-  <meta name="theme-color" content="#020811">
+  />
 
   <title>COURTVISION PRO</title>
 
-  <link rel="stylesheet" href="style.css">
+  <meta
+    name="description"
+    content="COURTVISION PRO - Professional Basketball Analytics"
+  />
+
+  <link rel="stylesheet" href="style.css" />
 </head>
 
 <body>
 
   <!-- =========================================================
-       COURTVISION PRO
-       Professional Basketball Analytics
-       ========================================================= -->
-
+       APP
+  ========================================================== -->
   <div id="app">
 
     <!-- =======================================================
          TOP HEADER
-         ======================================================= -->
-
+    ======================================================== -->
     <header class="top-header">
 
       <div class="brand">
 
-        <div class="brand-ball">🏀</div>
+        <div class="brand-ball">
+          🏀
+        </div>
 
         <div class="brand-text">
-          <div class="brand-name">
+          <div class="brand-title">
             COURTVISION <span>PRO</span>
           </div>
 
-          <div class="brand-sub">
+          <div class="brand-subtitle">
             BASKETBALL ANALYTICS
           </div>
         </div>
@@ -47,9 +48,8 @@
       </div>
 
 
-      <!-- 3v3 / 5v5 -->
-
-      <div class="mode-switch" id="modeSwitch">
+      <!-- MODE -->
+      <div class="mode-switch">
 
         <button
           type="button"
@@ -71,8 +71,7 @@
 
 
       <!-- MAIN NAV -->
-
-      <nav class="main-nav" id="mainNav">
+      <nav class="main-nav">
 
         <button
           type="button"
@@ -117,7 +116,7 @@
         <button
           type="button"
           class="nav-btn"
-          data-page="report"
+          data-page="reports"
         >
           리포트
         </button>
@@ -134,29 +133,28 @@
 
 
       <!-- HEADER ACTIONS -->
-
       <div class="header-actions">
 
         <button
           type="button"
+          id="openSetupBtn"
           class="header-btn"
-          id="playerSetupBtn"
         >
           선수 설정
         </button>
 
         <button
           type="button"
-          class="header-btn primary"
           id="saveGameBtn"
+          class="header-btn primary"
         >
           경기 저장
         </button>
 
         <button
           type="button"
+          id="resetGameBtn"
           class="header-btn danger"
-          id="resetBtn"
         >
           초기화
         </button>
@@ -167,384 +165,97 @@
 
 
     <!-- =======================================================
-         PAGE ROOT
-         ======================================================= -->
+         STATUS BAR
+    ======================================================== -->
+    <div class="status-bar">
 
-    <main id="pageRoot"></main>
+      <div class="status-left">
+
+        <span
+          id="statusMode"
+          class="status-mode"
+        >
+          3대3
+        </span>
+
+        <span
+          id="statusGame"
+          class="status-game"
+        >
+          경기 미설정
+        </span>
+
+      </div>
+
+      <div class="status-right">
+
+        <span
+          id="saveStatus"
+          class="save-status"
+        >
+          자동 저장 대기
+        </span>
+
+        <span
+          id="liveIndicator"
+          class="live-indicator"
+        >
+          <i></i>
+          LIVE
+        </span>
+
+      </div>
+
+    </div>
+
+
+    <!-- =======================================================
+         PAGE CONTAINER
+    ======================================================== -->
+    <main id="pageContainer" class="page-container">
+
+      <!-- app.js가 페이지를 렌더링 -->
+    </main>
 
 
     <!-- =======================================================
          GLOBAL TOAST
-         ======================================================= -->
-
+    ======================================================== -->
     <div
       id="toast"
       class="toast"
       aria-live="polite"
-    ></div>
-
-
-    <!-- =======================================================
-         PLAYER / GAME SETUP MODAL
-         ======================================================= -->
-
-    <div
-      id="setupModal"
-      class="modal-overlay hidden"
     >
-
-      <div class="setup-modal">
-
-        <div class="modal-header">
-
-          <div>
-            <div class="modal-kicker">
-              COURTVISION PRO
-            </div>
-
-            <h2>경기 / 선수 설정</h2>
-
-            <p id="setupModeText">
-              3대3 · 3명 로스터
-            </p>
-          </div>
-
-          <button
-            type="button"
-            class="icon-btn"
-            id="closeSetupBtn"
-            aria-label="닫기"
-          >
-            ×
-          </button>
-
-        </div>
-
-
-        <div class="setup-info">
-          경기 정보를 입력하고 선수 명단을 등록하세요.
-          <br>
-          저장 후 라이브 화면에서 바로 기록할 수 있습니다.
-        </div>
-
-
-        <!-- GAME INFO -->
-
-        <section class="setup-section">
-
-          <div class="setup-grid two">
-
-            <label class="field">
-              <span>경기명</span>
-              <input
-                id="gameNameInput"
-                type="text"
-                placeholder="예: 설천고 A vs 설천고 B"
-                autocomplete="off"
-              >
-            </label>
-
-            <label class="field">
-              <span>대회명</span>
-              <input
-                id="tournamentInput"
-                type="text"
-                placeholder="예: 설천고 농구 리그"
-                autocomplete="off"
-              >
-            </label>
-
-          </div>
-
-        </section>
-
-
-        <!-- TEAM INFO -->
-
-        <section class="setup-section">
-
-          <div class="setup-grid two">
-
-            <!-- HOME -->
-
-            <div class="team-setup home">
-
-              <div class="team-title">
-
-                <span class="team-dot home-dot"></span>
-
-                <strong>HOME</strong>
-
-              </div>
-
-              <label class="field">
-                <span>팀 이름</span>
-
-                <input
-                  id="homeTeamInput"
-                  type="text"
-                  value="HOME"
-                  autocomplete="off"
-                >
-              </label>
-
-
-              <div
-                id="homeRoster"
-                class="roster-list"
-              ></div>
-
-            </div>
-
-
-            <!-- AWAY -->
-
-            <div class="team-setup away">
-
-              <div class="team-title">
-
-                <span class="team-dot away-dot"></span>
-
-                <strong>AWAY</strong>
-
-              </div>
-
-              <label class="field">
-                <span>팀 이름</span>
-
-                <input
-                  id="awayTeamInput"
-                  type="text"
-                  value="AWAY"
-                  autocomplete="off"
-                >
-              </label>
-
-
-              <div
-                id="awayRoster"
-                class="roster-list"
-              ></div>
-
-            </div>
-
-          </div>
-
-        </section>
-
-
-        <!-- MODAL FOOTER -->
-
-        <div class="modal-footer">
-
-          <button
-            type="button"
-            class="btn secondary"
-            id="cancelSetupBtn"
-          >
-            취소
-          </button>
-
-          <button
-            type="button"
-            class="btn primary"
-            id="applySetupBtn"
-          >
-            설정 저장
-          </button>
-
-        </div>
-
-      </div>
-
+      <span id="toastIcon">✓</span>
+      <span id="toastMessage">완료</span>
     </div>
 
 
     <!-- =======================================================
-         SHOT RECORD MODAL
-         ======================================================= -->
-
+         MODAL
+    ======================================================== -->
     <div
-      id="shotModal"
+      id="modalOverlay"
       class="modal-overlay hidden"
     >
 
-      <div class="shot-modal">
+      <div
+        id="modal"
+        class="modal"
+        role="dialog"
+        aria-modal="true"
+      >
 
-        <div class="modal-header">
+        <button
+          type="button"
+          id="modalClose"
+          class="modal-close"
+          aria-label="닫기"
+        >
+          ×
+        </button>
 
-          <div>
-
-            <div class="modal-kicker">
-              SHOT EVENT
-            </div>
-
-            <h2>슛 기록</h2>
-
-            <p id="shotModalPlayer">
-              선수를 선택하세요.
-            </p>
-
-          </div>
-
-          <button
-            type="button"
-            class="icon-btn"
-            id="closeShotModalBtn"
-          >
-            ×
-          </button>
-
-        </div>
-
-
-        <!-- SHOT RESULT -->
-
-        <div class="shot-result-grid">
-
-          <button
-            type="button"
-            class="shot-result success"
-            data-shot-result="made"
-          >
-            <span>●</span>
-            슛 성공
-          </button>
-
-          <button
-            type="button"
-            class="shot-result miss"
-            data-shot-result="missed"
-          >
-            <span>×</span>
-            슛 실패
-          </button>
-
-        </div>
-
-
-        <!-- SHOT TYPE -->
-
-        <div class="modal-subtitle">
-          슛 종류
-        </div>
-
-        <div class="shot-type-grid">
-
-          <button
-            type="button"
-            class="shot-type-btn"
-            data-shot-type="FT"
-          >
-            자유투
-          </button>
-
-          <button
-            type="button"
-            class="shot-type-btn"
-            data-shot-type="2PT"
-          >
-            2점 필드골
-          </button>
-
-          <button
-            type="button"
-            class="shot-type-btn"
-            data-shot-type="3PT"
-          >
-            3점 필드골
-          </button>
-
-        </div>
-
-
-        <!-- COURT -->
-
-        <div class="shot-location-area">
-
-          <div class="modal-subtitle">
-            실제 슛 위치
-          </div>
-
-          <p class="helper-text">
-            성공/실패와 슛 종류를 선택한 뒤 실제 코트 위치를 클릭하세요.
-          </p>
-
-          <div
-            id="shotModalCourt"
-            class="shot-court"
-          ></div>
-
-        </div>
-
-
-        <div class="modal-footer">
-
-          <button
-            type="button"
-            class="btn secondary"
-            id="cancelShotBtn"
-          >
-            취소
-          </button>
-
-          <button
-            type="button"
-            class="btn primary"
-            id="confirmShotBtn"
-          >
-            슛 기록
-          </button>
-
-        </div>
-
-      </div>
-
-    </div>
-
-
-    <!-- =======================================================
-         PASS MODAL
-         ======================================================= -->
-
-    <div
-      id="passModal"
-      class="modal-overlay hidden"
-    >
-
-      <div class="small-modal">
-
-        <div class="modal-header">
-
-          <div>
-
-            <div class="modal-kicker">
-              PASS EVENT
-            </div>
-
-            <h2>패스 기록</h2>
-
-            <p id="passFromText">
-              패스한 선수를 선택하세요.
-            </p>
-
-          </div>
-
-          <button
-            type="button"
-            class="icon-btn"
-            id="closePassModalBtn"
-          >
-            ×
-          </button>
-
-        </div>
-
-
-        <div
-          id="passReceiverList"
-          class="pass-receiver-list"
-        ></div>
+        <div id="modalContent"></div>
 
       </div>
 
@@ -553,56 +264,40 @@
 
     <!-- =======================================================
          CONFIRM MODAL
-         ======================================================= -->
-
+    ======================================================== -->
     <div
-      id="confirmModal"
+      id="confirmOverlay"
       class="modal-overlay hidden"
     >
 
-      <div class="small-modal">
+      <div class="confirm-modal">
 
-        <div class="modal-header">
-
-          <div>
-            <div class="modal-kicker">
-              CONFIRM
-            </div>
-
-            <h2 id="confirmTitle">
-              확인
-            </h2>
-          </div>
-
-          <button
-            type="button"
-            class="icon-btn"
-            id="closeConfirmBtn"
-          >
-            ×
-          </button>
-
+        <div class="confirm-icon">
+          !
         </div>
 
-        <p
-          id="confirmMessage"
-          class="confirm-message"
-        ></p>
+        <h3 id="confirmTitle">
+          확인
+        </h3>
 
-        <div class="modal-footer">
+        <p id="confirmMessage">
+          계속하시겠습니까?
+        </p>
+
+        <div class="confirm-actions">
 
           <button
             type="button"
+            id="confirmCancel"
             class="btn secondary"
-            id="confirmCancelBtn"
           >
             취소
           </button>
 
           <button
             type="button"
+            id="confirmOk"
             class="btn danger"
-            id="confirmOkBtn"
           >
             확인
           </button>
@@ -615,24 +310,497 @@
 
 
     <!-- =======================================================
-         HIDDEN FILE INPUT
-         ======================================================= -->
-
-    <input
-      id="videoFileInput"
-      type="file"
-      accept="video/*"
-      hidden
+         SETUP MODAL
+    ======================================================== -->
+    <div
+      id="setupOverlay"
+      class="modal-overlay hidden"
     >
+
+      <div class="setup-modal">
+
+        <button
+          type="button"
+          id="setupClose"
+          class="modal-close"
+          aria-label="닫기"
+        >
+          ×
+        </button>
+
+
+        <div class="setup-header">
+
+          <div>
+            <div class="eyebrow">
+              COURTVISION PRO
+            </div>
+
+            <h2>
+              경기 / 선수 설정
+            </h2>
+
+            <p id="setupModeText">
+              3대3 · 3명 로스터
+            </p>
+          </div>
+
+        </div>
+
+
+        <div class="setup-info">
+          경기 정보를 입력하고 선수를 등록하세요.
+          <br />
+          저장하면 라이브 분석 화면에 바로 반영됩니다.
+        </div>
+
+
+        <!-- GAME INFO -->
+        <section class="setup-section">
+
+          <div class="setup-grid two">
+
+            <label class="field">
+
+              <span>
+                경기명
+              </span>
+
+              <input
+                id="setupGameName"
+                type="text"
+                placeholder="예: 결승전"
+                autocomplete="off"
+              />
+
+            </label>
+
+
+            <label class="field">
+
+              <span>
+                대회명
+              </span>
+
+              <input
+                id="setupTournament"
+                type="text"
+                placeholder="예: 설천고 농구 리그"
+                autocomplete="off"
+              />
+
+            </label>
+
+          </div>
+
+        </section>
+
+
+        <!-- TEAMS -->
+        <section class="setup-section">
+
+          <div class="setup-grid two">
+
+            <!-- HOME -->
+            <div class="team-setup home">
+
+              <div class="team-setup-title">
+
+                <span class="team-dot blue"></span>
+
+                <span>
+                  HOME
+                </span>
+
+              </div>
+
+
+              <label class="field">
+
+                <span>
+                  팀 이름
+                </span>
+
+                <input
+                  id="homeTeamName"
+                  type="text"
+                  value="HOME"
+                  autocomplete="off"
+                />
+
+              </label>
+
+
+              <div
+                id="homeRoster"
+                class="roster-list"
+              >
+                <!-- JS -->
+              </div>
+
+            </div>
+
+
+            <!-- AWAY -->
+            <div class="team-setup away">
+
+              <div class="team-setup-title">
+
+                <span class="team-dot red"></span>
+
+                <span>
+                  AWAY
+                </span>
+
+              </div>
+
+
+              <label class="field">
+
+                <span>
+                  팀 이름
+                </span>
+
+                <input
+                  id="awayTeamName"
+                  type="text"
+                  value="AWAY"
+                  autocomplete="off"
+                />
+
+              </label>
+
+
+              <div
+                id="awayRoster"
+                class="roster-list"
+              >
+                <!-- JS -->
+              </div>
+
+            </div>
+
+          </div>
+
+        </section>
+
+
+        <!-- SETUP ACTIONS -->
+        <div class="setup-actions">
+
+          <button
+            type="button"
+            id="setupCancel"
+            class="btn secondary"
+          >
+            취소
+          </button>
+
+          <button
+            type="button"
+            id="setupSave"
+            class="btn primary large"
+          >
+            설정 저장 · 경기 시작
+          </button>
+
+        </div>
+
+      </div>
+
+    </div>
+
+
+    <!-- =======================================================
+         EVENT DETAIL MODAL
+    ======================================================== -->
+    <div
+      id="eventOverlay"
+      class="modal-overlay hidden"
+    >
+
+      <div class="event-modal">
+
+        <button
+          type="button"
+          id="eventClose"
+          class="modal-close"
+        >
+          ×
+        </button>
+
+        <div class="eyebrow">
+          EVENT
+        </div>
+
+        <h2 id="eventTitle">
+          기록
+        </h2>
+
+        <div id="eventContent"></div>
+
+      </div>
+
+    </div>
+
+
+    <!-- =======================================================
+         SHOT RECORD MODAL
+    ======================================================== -->
+    <div
+      id="shotOverlay"
+      class="modal-overlay hidden"
+    >
+
+      <div class="shot-modal">
+
+        <button
+          type="button"
+          id="shotClose"
+          class="modal-close"
+        >
+          ×
+        </button>
+
+        <div class="eyebrow">
+          SHOT TRACKING
+        </div>
+
+        <h2>
+          슛 기록
+        </h2>
+
+        <p class="modal-description">
+          슛 성공/실패와 슛 종류를 선택한 뒤
+          코트에서 실제 슛 위치를 눌러주세요.
+        </p>
+
+
+        <!-- SHOT RESULT -->
+        <div class="shot-step">
+
+          <div class="step-title">
+            01 · 결과
+          </div>
+
+          <div class="shot-choice-grid">
+
+            <button
+              type="button"
+              class="shot-result-btn made"
+              data-shot-result="made"
+            >
+              <strong>성공</strong>
+              <small>MADE</small>
+            </button>
+
+            <button
+              type="button"
+              class="shot-result-btn miss"
+              data-shot-result="miss"
+            >
+              <strong>실패</strong>
+              <small>MISS</small>
+            </button>
+
+          </div>
+
+        </div>
+
+
+        <!-- SHOT TYPE -->
+        <div class="shot-step">
+
+          <div class="step-title">
+            02 · 슛 종류
+          </div>
+
+          <div
+            id="shotTypeChoices"
+            class="shot-choice-grid three"
+          >
+
+            <!-- JS -->
+          </div>
+
+        </div>
+
+
+        <!-- SHOT COURT -->
+        <div class="shot-step">
+
+          <div class="step-title">
+            03 · 실제 위치
+          </div>
+
+          <div
+            id="shotModalCourt"
+            class="shot-modal-court"
+          >
+            <!-- JS -->
+          </div>
+
+        </div>
+
+
+        <div class="shot-modal-footer">
+
+          <div id="shotHint">
+            결과와 슛 종류를 먼저 선택하세요.
+          </div>
+
+          <button
+            type="button"
+            id="shotCancel"
+            class="btn secondary"
+          >
+            취소
+          </button>
+
+        </div>
+
+      </div>
+
+    </div>
+
+
+    <!-- =======================================================
+         PASS MODAL
+    ======================================================== -->
+    <div
+      id="passOverlay"
+      class="modal-overlay hidden"
+    >
+
+      <div class="pass-modal">
+
+        <button
+          type="button"
+          id="passClose"
+          class="modal-close"
+        >
+          ×
+        </button>
+
+        <div class="eyebrow">
+          PASS NETWORK
+        </div>
+
+        <h2>
+          패스 대상 선택
+        </h2>
+
+        <p class="modal-description">
+          현재 선택된 선수에게서 패스를 받은
+          같은 팀 선수를 선택하세요.
+        </p>
+
+        <div
+          id="passTargetList"
+          class="pass-target-list"
+        >
+          <!-- JS -->
+        </div>
+
+        <div class="modal-footer">
+
+          <button
+            type="button"
+            id="passCancel"
+            class="btn secondary"
+          >
+            취소
+          </button>
+
+        </div>
+
+      </div>
+
+    </div>
+
+
+    <!-- =======================================================
+         VIDEO AI REVIEW MODAL
+    ======================================================== -->
+    <div
+      id="aiReviewOverlay"
+      class="modal-overlay hidden"
+    >
+
+      <div class="ai-review-modal">
+
+        <button
+          type="button"
+          id="aiReviewClose"
+          class="modal-close"
+        >
+          ×
+        </button>
+
+        <div class="ai-review-header">
+
+          <div>
+
+            <div class="eyebrow">
+              AI VIDEO ANALYSIS
+            </div>
+
+            <h2>
+              AI 분석 결과 검토
+            </h2>
+
+          </div>
+
+          <div
+            id="aiConfidence"
+            class="confidence-badge"
+          >
+            검토 필요
+          </div>
+
+        </div>
+
+
+        <div
+          id="aiReviewContent"
+          class="ai-review-content"
+        >
+          <!-- JS -->
+        </div>
+
+
+        <div class="modal-footer">
+
+          <button
+            type="button"
+            id="aiReject"
+            class="btn secondary"
+          >
+            수정
+          </button>
+
+          <button
+            type="button"
+            id="aiConfirm"
+            class="btn primary"
+          >
+            기록 확정
+          </button>
+
+        </div>
+
+      </div>
+
+    </div>
+
 
   </div>
 
 
   <!-- =========================================================
-       APP SCRIPT
-       ========================================================= -->
-
-  <script src="app.js"></script>
+       JAVASCRIPT
+  ========================================================== -->
+  <script src="app.js" defer></script>
 
 </body>
 </html>
